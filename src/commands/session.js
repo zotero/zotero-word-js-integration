@@ -282,8 +282,19 @@ Zotero.Session = class {
 
 	setBibliographyStyle(firstLineIndent, bodyIndent, lineSpacing, entrySpacing,
 										 tabStops, tabStopsCount) {
-		this.queued.bibliographyStyle = {firstLineIndent, bodyIndent, lineSpacing, entrySpacing,
-			tabStops};
+		const styles = this.context.document.getStyles();
+		const style = styles.getByName(Word.BuiltInStyleName.bibliography);
+		style.load({
+			paragraphFormat: { $all: true }
+		});
+		const paragraphFormat = style.paragraphFormat;
+		paragraphFormat.firstLineIndent =  firstLineIndent / 20.0;
+		paragraphFormat.leftIndent = bodyIndent / 20.0;
+		paragraphFormat.lineSpacing = lineSpacing / 20.0;
+		paragraphFormat.spaceAfter = entrySpacing / 20.0;
+		
+		// Set tab stops
+		// TODO: Missing API reported https://github.com/OfficeDev/office-js/issues/3585
 	}
 
 	async insertField(fieldType, noteType) {
