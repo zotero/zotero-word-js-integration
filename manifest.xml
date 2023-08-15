@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="TaskPaneApp">
+  <Id>0fc70f9f-a3aa-43a1-9b95-c45c86904d42</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Zotero</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Zotero"/>
+  <Description DefaultValue="Integrates Zotero, an open source research tool, with Word"/>
+  <IconUrl DefaultValue="https://127.0.0.1:3000/assets/Icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://127.0.0.1:3000/assets/Icon-80.png"/>
+  <SupportUrl DefaultValue="https://www.zotero.org/"/>
+  <AppDomains>
+    <AppDomain>https://www.zotero.org</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Document"/>
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="OOXML" MinVersion="1.1"/>
+    </Sets>
+  </Requirements> 
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://127.0.0.1:3000/commands.html"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Document">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title"/>
+            <Description resid="GetStarted.Description"/>
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl"/>
+          </GetStarted>
+          <FunctionFile resid="Commands.Url"/>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <CustomTab id="ZoteroTab">
+              <Label resid="ZoteroTab.Label"/>
+              <Group id="ZoteroGroup">
+                <Label resid="CommandsGroup.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16x16"/>
+                  <bt:Image size="32" resid="Icon.32x32"/>
+                  <bt:Image size="80" resid="Icon.80x80"/>
+                </Icon>
+                
+                <Control xsi:type="Button" id="AddEditCitationButton">
+                  <Label resid="AddEditCitationButton.Label"/>
+                  <Supertip>
+                    <Title resid="AddEditCitationButton.Label"/>
+                    <Description resid="AddEditCitationButton.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="AddEditCitation.16x16"/>
+                    <bt:Image size="32" resid="AddEditCitation.32x32"/>
+                    <bt:Image size="80" resid="AddEditCitation.80x80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>addEditCitation</FunctionName>
+                  </Action>
+                </Control>
+
+                <Control xsi:type="Button" id="AddEditBibliographyButton">
+                  <Label resid="AddEditBibliographyButton.Label"/>
+                  <Supertip>
+                    <Title resid="AddEditBibliographyButton.Label"/>
+                    <Description resid="AddEditBibliographyButton.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="AddEditBibliography.16x16"/>
+                    <bt:Image size="32" resid="AddEditBibliography.32x32"/>
+                    <bt:Image size="80" resid="AddEditBibliography.80x80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>addEditBibliography</FunctionName>
+                  </Action>
+                </Control> 
+                
+                <Control xsi:type="Button" id="DocumentPreferencesButton">
+                  <Label resid="DocumentPreferencesButton.Label"/>
+                  <Supertip>
+                    <Title resid="DocumentPreferencesButton.Label"/>
+                    <Description resid="DocumentPreferencesButton.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="DocumentPreferences.16x16"/>
+                    <bt:Image size="32" resid="DocumentPreferences.32x32"/>
+                    <bt:Image size="80" resid="DocumentPreferences.80x80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>setDocPrefs</FunctionName>
+                  </Action>
+                </Control> 
+                
+                <Control xsi:type="Button" id="RefreshButton">
+                  <Label resid="RefreshButton.Label"/>
+                  <Supertip>
+                    <Title resid="RefreshButton.Label"/>
+                    <Description resid="RefreshButton.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Refresh.16x16"/>
+                    <bt:Image size="32" resid="Refresh.32x32"/>
+                    <bt:Image size="80" resid="Refresh.80x80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>refresh</FunctionName>
+                  </Action>
+                </Control> 
+                
+                <Control xsi:type="Button" id="UnlinkButton">
+                  <Label resid="UnlinkButton.Label"/>
+                  <Supertip>
+                    <Title resid="UnlinkButton.Label"/>
+                    <Description resid="UnlinkButton.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16"/>
+                    <bt:Image size="32" resid="Icon.32x32"/>
+                    <bt:Image size="80" resid="Icon.80x80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>unlink</FunctionName>
+                  </Action>
+                </Control> 
+              </Group>
+            </CustomTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16x16" DefaultValue="https://127.0.0.1:3000/assets/Icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://127.0.0.1:3000/assets/Icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://127.0.0.1:3000/assets/Icon-80.png"/>
+        <bt:Image id="AddEditCitation.16x16" DefaultValue="https://127.0.0.1:3000/assets/addEditCitation-16.png"/>
+        <bt:Image id="AddEditCitation.32x32" DefaultValue="https://127.0.0.1:3000/assets/addEditCitation-32.png"/>
+        <bt:Image id="AddEditCitation.80x80" DefaultValue="https://127.0.0.1:3000/assets/addEditCitation-80.png"/>
+        <bt:Image id="AddEditBibliography.16x16" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-16.png"/>
+        <bt:Image id="AddEditBibliography.32x32" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-32.png"/>
+        <bt:Image id="AddEditBibliography.80x80" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-80.png"/>
+        <bt:Image id="DocumentPreferences.16x16" DefaultValue="https://127.0.0.1:3000/assets/setDocumentPreferences-16.png"/>
+        <bt:Image id="DocumentPreferences.32x32" DefaultValue="https://127.0.0.1:3000/assets/setDocumentPreferences-32.png"/>
+        <bt:Image id="DocumentPreferences.80x80" DefaultValue="https://127.0.0.1:3000/assets/setDocumentPreferences-80.png"/>
+        <bt:Image id="Refresh.16x16" DefaultValue="https://127.0.0.1:3000/assets/refresh-16.png"/>
+        <bt:Image id="Refresh.32x32" DefaultValue="https://127.0.0.1:3000/assets/refresh-32.png"/>
+        <bt:Image id="Refresh.80x80" DefaultValue="https://127.0.0.1:3000/assets/refresh-80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://www.zotero.org/"/>
+        <bt:Url id="Commands.Url" DefaultValue="https://127.0.0.1:3000/commands.html"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GetStarted.Title" DefaultValue="Get started with your sample add-in!"/>
+        <bt:String id="ZoteroTab.Label" DefaultValue="Zotero"/>
+        <bt:String id="CommandsGroup.Label" DefaultValue="Zotero"/>
+        <bt:String id="AddEditCitationButton.Label" DefaultValue="Add/Edit Citation"/>
+        <bt:String id="AddEditBibliographyButton.Label" DefaultValue="Add/Edit Bibliography"/>
+        <bt:String id="DocumentPreferencesButton.Label" DefaultValue="Document Preferences"/>
+        <bt:String id="RefreshButton.Label" DefaultValue="Refresh"/>
+        <bt:String id="UnlinkButton.Label" DefaultValue="Unlink Citations"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="GetStarted.Description" DefaultValue="Zotero add-in loaded succesfully. You will find it in the Zotero tab."/>
+        <bt:String id="AddEditCitationButton.Tooltip" DefaultValue="Add a new citation or edit an existing citation."/>
+        <bt:String id="AddEditBibliographyButton.Tooltip" DefaultValue="Add/Edit Bibliography"/>
+        <bt:String id="DocumentPreferencesButton.Tooltip" DefaultValue="Document Preferences"/>
+        <bt:String id="RefreshButton.Tooltip" DefaultValue="Refresh"/>
+        <bt:String id="UnlinkButton.Tooltip" DefaultValue="Unlink Citations"/>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>
