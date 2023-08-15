@@ -243,10 +243,11 @@ Zotero.Session = class {
 		
 		let getZoteroFieldsFromWordFields = (field, noteType=0) => {
 			if (field.type === "Addin" && field.code.trim().startsWith(FIELD_PREFIX)) {
+				field.track();
 				return [{
 					code: field.code.trim(),
 					noteType,
-					elem: field,
+					wordField: field,
 					text: field.result.text
 				}];
 			}
@@ -264,16 +265,16 @@ Zotero.Session = class {
 			this.fields = this.fields.concat(getZoteroFieldsFromWordFields(field))
 		}
 		
-		let adjacency = new Array(this.fields.length);
-		adjacency = adjacency.map(_ => false);
-		for (let i = 0; i < fields.items.length - 1; i++) {
-			let fieldA = fields.items[i];
-			let fieldB = fields.items[i+1];
-			adjacency[i] = fieldA.result.compareLocationWith(fieldB.result);
+		let adjacency = this.fields.map(_ => ({ value: false }));
+		for (let i = 0; i < this.fields.length - 1; i++) {
+			let fieldA = this.fields[i];
+			let fieldB = this.fields[i+1];
+			adjacency[i] = fieldA.wordField.result.compareLocationWith(fieldB.wordField.result);
 		}
 		await this.context.sync();
+		// TODO: Always returns "Equals". Reported https://github.com/OfficeDev/office-js/issues/3584 
 		this.fields.forEach((field, idx) => {
-			field.adjacent = adjacency[idx] === "AdjacentBefore";
+			field.adjacent = adjacency[idx].value === "AdjacentBefore";
 		});
 		
 		return this.fields;
