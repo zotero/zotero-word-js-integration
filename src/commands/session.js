@@ -92,7 +92,7 @@ Zotero.Session = class {
 			Zotero.logError(e);
 		}
 		finally {
-			await this._releaseContext();
+			// TODO: Release tracked objects!
 			this.event.completed();
 		}
 	}
@@ -126,12 +126,18 @@ Zotero.Session = class {
 		var docID = args.splice(0, 1);
 		var result;
 		
-		if (!this.context) {
-			await this._getContext();
-		}
 		try {
-			result = await this[method].apply(this, args);
-		} catch (e) {
+			await Word.run(async (context) => {
+				this.context = context;
+				this.document = context.document;
+				try {
+					result = await this[method].apply(this, args);
+				} finally {
+					this.context = this.document = null;
+				}
+			});
+		}
+		catch (e) {
 			Zotero.debug(`Exception in ${request.command}`);
 			Zotero.logError(e);
 			result = {
@@ -141,28 +147,11 @@ Zotero.Session = class {
 			}
 		}
 		
+		
 		if (method == 'complete') return result;
 		return this.respond(result ? JSON.stringify(result) : 'null');
 	}
-	
-	async _getContext() {
-		if (this.context) return this.context;
-		this._releaseContextDeferred = Zotero.Promise.defer();
-		return new Promise((resolve) => {
-			Word.run(context => {
-				this.context = context;
-				resolve(context);
-				return this._releaseContextDeferred.promise;
-			});
-		});
-	}
-	
-	async _releaseContext() {
-		if (!this._releaseContextDeferred) return;
-		this._releaseContextDeferred.resolve();
-		this.context = null;
-	}
-	
+
 	async getDocument() {
 		return this.getActiveDocument();
 	}
@@ -182,9 +171,9 @@ Zotero.Session = class {
 	}
 
 	async getDocumentData() {
-		const properties = this.context.document.properties.customProperties;
+		const properties = this.document.properties.customProperties;
 		properties.load({$all: true});
-		await this.context.sync();
+		await this.sync();
 		let pref_pieces = [];
 		for (let item of properties.items) {
 			if (item.key.startsWith(ZOTERO_CONFIG.PREF_PREFIX)) {
@@ -196,13 +185,13 @@ Zotero.Session = class {
 	}
 
 	async setDocumentData(data) {
-		const properties = this.context.document.properties.customProperties;
+		const properties = this.document.properties.customProperties;
 		for (let i = 1; data.length; i++) {
 			let slice = data.slice(0, ZOTERO_CONFIG.PREF_MAX_LENGTH)
 			properties.add(`${ZOTERO_CONFIG.PREF_PREFIX}_${i}`, slice);
 			data = data.slice(ZOTERO_CONFIG.PREF_MAX_LENGTH);
 		}
-		await this.context.sync();
+		await this.sync();
 	}
 
 	async activate(force) {
@@ -226,42 +215,56 @@ Zotero.Session = class {
 
 	async getFields() {
 		if (this.fields) return this.fields;
-		const body = this.context.document.body;
-		let fields = body.fields.getByTypes([Word.FieldType.addin,
-			Word.FieldType.noteRef])
+		const body = this.document.body;
+		let fields = body.fields.getByTypes([Word.FieldType.addin]);
 		fields = fields.load(FIELD_LOAD_OPTIONS);
-		await this.context.sync();
+		fields.track();
+		let footnotes = body.footnotes.load('items/type');
+		footnotes.track();
+		let endnotes = body.endnotes.load('items/type');
+		endnotes.track();
+		await this.sync();
 		
-		// Load note info
-		fields.items.forEach(field => {
-			if (field.type === "NoteRef") {
-				field.result.footnotes.load("items")
-				field.result.endnotes.load("items")
-			}
-		})
-		await this.context.sync();
+		footnotes.items.forEach(note => note.body.fields.load(FIELD_LOAD_OPTIONS));
+		endnotes.items.forEach(note => note.body.fields.load(FIELD_LOAD_OPTIONS));
+		await this.sync();
+		
+		let filterNotes = (notes) => {
+			let notesHaveZoteroFields = notes.map((note) => {
+				let fields = note.body.fields.load(FIELD_LOAD_OPTIONS);
+				return fields.items.some(field => field.code.trim().startsWith(FIELD_PREFIX));
+			});
+			return notes.filter((note, idx) => notesHaveZoteroFields[idx]);
+		};
+		footnotes = await filterNotes(footnotes.items);
+		endnotes = await filterNotes(endnotes.items);
+		
+		fields = fields.items.filter(field => field.code.trim().startsWith(FIELD_PREFIX));
+		fields = await this._sortNotesIntoFields(fields, footnotes)
+		fields = await this._sortNotesIntoFields(fields, endnotes)
 		
 		let getZoteroFieldsFromWordFields = (field, noteType=0) => {
-			if (field.type === "Addin" && field.code.trim().startsWith(FIELD_PREFIX)) {
-				field.track();
-				return [{
-					code: field.code.trim(),
-					noteType,
-					wordField: field,
-					text: field.result.text
-				}];
+			if (typeof field.code !== "undefined") {
+				if (field.code.trim().startsWith(FIELD_PREFIX)) {
+					field.track();
+					return [{
+						code: field.code.trim(),
+						noteType,
+						wordField: field,
+						text: field.result.text
+					}];
+				}
+				else return [];
 			}
 			let fields = [];
-			let note = this._getNoteFromNoteField(field);
-			if (!note) return [];
-			for (let field of note.body.fields.items) {
-				fields = fields.concat(getZoteroFieldsFromWordFields(field, field.type === 'Footnote' ? 1 : 2));
+			for (let noteField of field.body.fields.items) {
+				fields = fields.concat(getZoteroFieldsFromWordFields(noteField, noteField.type === 'Footnote' ? 1 : 2));
 			}
 			return fields;
 		}
 		
 		this.fields = [];
-		for (let field of fields.items) {
+		for (let field of fields) {
 			this.fields = this.fields.concat(getZoteroFieldsFromWordFields(field))
 		}
 		
@@ -271,7 +274,7 @@ Zotero.Session = class {
 			let fieldB = this.fields[i+1];
 			adjacency[i] = fieldA.wordField.result.compareLocationWith(fieldB.wordField.result);
 		}
-		await this.context.sync();
+		await this.sync();
 		// TODO: Always returns "Equals". Reported https://github.com/OfficeDev/office-js/issues/3584 
 		this.fields.forEach((field, idx) => {
 			field.adjacent = adjacency[idx].value === "AdjacentBefore";
@@ -282,7 +285,7 @@ Zotero.Session = class {
 
 	setBibliographyStyle(firstLineIndent, bodyIndent, lineSpacing, entrySpacing,
 										 tabStops, tabStopsCount) {
-		const styles = this.context.document.getStyles();
+		const styles = this.document.getStyles();
 		const style = styles.getByName(Word.BuiltInStyleName.bibliography);
 		style.load({
 			paragraphFormat: { $all: true }
@@ -296,6 +299,34 @@ Zotero.Session = class {
 		// Set tab stops
 		// TODO: Missing API reported https://github.com/OfficeDev/office-js/issues/3585
 	}
+
+	async canInsertField(fieldType) {
+		const selection = this.document.getSelection();
+		selection.parentBody.load('type');
+		await this.sync();
+		const type = selection.parentBody.type;
+		return (fieldType !== 'Bookmark' && ["Footnote", "Endnote", "NoteItem"].includes(type))
+			|| type === "MainDoc";
+	}
+	
+	async cursorInField(showOrphanedCitationAlert=false) {
+		const selection = this.document.getSelection();
+		let fields = selection.body.fields.getByTypes([Word.FieldType.addin])
+		fields = fields.load(FIELD_LOAD_OPTIONS);
+		await this.sync();
+		for (let field of fields.items) {
+			if (field.code.trim().startsWith(FIELD_PREFIX)) {
+				return [{
+					code: field.code.trim(),
+					noteType,
+					wordField: field,
+					text: field.result.text
+				}]; 
+			}
+		}
+		return null;
+	}
+
 
 	async insertField(fieldType, noteType) {
 		var id = Zotero.Utilities.randomString(Zotero.GoogleDocs.config.fieldKeyLength);
@@ -465,36 +496,6 @@ Zotero.Session = class {
 		});
 		// Returning inserted fields in the order of appearance of placeholder IDs
 		return Array.from(this.queued.insert).sort((a, b) => placeholderIDs.indexOf(a.id) - placeholderIDs.indexOf(b.id));
-	}
-
-	async cursorInField(showOrphanedCitationAlert=false) {
-		if (!(this.currentFieldID)) return false;
-		this.isInOrphanedField = false;
-
-		var fields = await this.getFields();
-		// The call to getFields() might change the selectedFieldID if there are duplicates
-		let selectedFieldID = this.currentFieldID = await Zotero.GoogleDocs.UI.getSelectedFieldID();
-		for (let field of fields) {
-			if (field.id == selectedFieldID) {
-				return field;
-			}
-		}
-		if (selectedFieldID && selectedFieldID.startsWith("broken=")) {
-			this.isInOrphanedField = true;
-			if (showOrphanedCitationAlert === true && !this.orphanedCitationAlertShown) {
-				let result = await Zotero.GoogleDocs.UI.displayOrphanedCitationAlert();
-				if (!result) {
-					throw new Error('Handled Error');
-				}
-				this.orphanedCitationAlertShown = true;
-			}
-			return false;
-		}
-		throw new Error(`Selected field ${selectedFieldID} not returned from Docs backend`);
-	}
-
-	async canInsertField() {
-		return this.isInOrphanedField || !this.isInLink;
 	}
 
 	async convert(fieldIDs, fieldType, fieldNoteTypes) {
@@ -682,13 +683,56 @@ Zotero.Session = class {
 		}
 		Zotero.GoogleDocs.downloadInterceptBlocked = true;
 	}	
+
+	async sync() {
+		return this.context.sync();
+	}
 	
-	_getNoteFromNoteField(field) {
-		if (field.result.footnotes.items.length) {
-			return field.results.footnotes.items[0];
-		} else if (field.results.endnotes.items.length) {
-			return field.results.endnotes.items[0];
+	// Comparing ranges in Word JS API is async, so sorting things is quite complicated.
+	// Still it will take log(n) async operations to sort two sorted lists into one another
+	// which is not the end of the world
+	async _sortNotesIntoFields(fields, notes) {
+		if (!fields.length) return notes;
+		let areSorted = false;
+		let compareValues = notes.map(() => ({ value: false }));
+		let noteSort = notes.map(() => ({ lower: 0, upper: fields.length }))
+		while (true) {
+			for (let i = 0; i < notes.length; i++) {
+				if (compareValues[i].value !== false) {
+					const { lower, upper } = noteSort[i];
+					const diff = upper - lower;
+					if (compareValues[i].value === "After") {
+						noteSort[i].lower = lower + Math.floor((diff)/2.) + (diff === 1 ? 1 : 0);
+					} else {
+						noteSort[i].upper = lower + Math.floor((diff)/2.) - (diff === 1 ? 1 : 0);
+					}
+				}
+				const { lower, upper } = noteSort[i];
+				if (lower === upper) continue;
+				const compIdx = lower + Math.floor((upper - lower)/2.)
+				if (compIdx >= fields.length) {
+					compareValues[i] = { value: "Before" };
+					continue;
+				}
+				const field = fields[compIdx];
+				let fieldRange;
+				if (typeof field.code != 'undefined') {
+					fieldRange = field.result
+				} else {
+					fieldRange = field.reference;
+				}
+				compareValues[i] = notes[i].reference.compareLocationWith(fieldRange);
+			}
+			areSorted = noteSort.every(status => status.lower === status.upper);
+			if (areSorted) break;
+			await this.sync();
 		}
-		return null;
+		// Insert in reverse
+		notes.sort(() => -1);
+		noteSort.sort(() => -1);
+		notes.forEach((note, idx) => {
+			fields.splice(noteSort[idx].lower, 0, note)
+		});
+		return fields;
 	}
 }
