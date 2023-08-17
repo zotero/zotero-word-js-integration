@@ -60,3 +60,35 @@ const buttons = [
 for (let button of buttons) {
 	g[button] = generateButtonHandler(button);
 }
+
+g.testFootnoteFieldInsert = async function(event) {
+	Word.run(async (context) => {
+		const selection = context.document.getSelection();
+		const footnote = selection.insertFootnote('test');
+		await context.sync();
+		const footnoteBodyRange = footnote.body.getRange();
+		const field = footnoteBodyRange.insertField('After', 'Addin', 'Test Field');
+		await context.sync();
+		field.result.insertText("TEST FIELD AGAIN", "Replace");
+		await context.sync();
+		field.code = "ADDIN test";
+		// Fails
+		await context.sync();
+	});
+	if (event) {
+		event.completed();
+	}
+}
+
+g.testFootnoteFieldRetrieve = async function(event) {
+	Word.run(async (context) => {
+		const footnotes = context.document.body.footnotes.load('items');
+		await context.sync();
+		const fields = footnotes.items[0].body.fields.load({ result: { text: true } });
+		await context.sync();
+		console.log(fields.items[0].result.text);
+	});
+	if (event) {
+		event.completed();
+	}
+}
