@@ -73,7 +73,7 @@
                     <bt:Image size="80" resid="AddEditBibliography.80x80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
-                    <FunctionName>addEditBibliography</FunctionName>
+                    <FunctionName>citationExplorer</FunctionName>
                   </Action>
                 </Control> 
                 

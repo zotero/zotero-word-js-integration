@@ -30,8 +30,12 @@ const FIELD_LOAD_OPTIONS = {
 		text: true
 	}
 }
-
 const FIELD_PREFIX = "ADDIN ZOTERO_";
+const FIELD_INSERT_CODE = "TEMP";
+const FIELD_PLACEHOLDER = "{Updating}";
+const BODY_TYPE_TO_NOTE_TYPE = { "Footnote": 1, "Endnote": 2 }
+const NOTE_TYPE_TO_BODY_TYPE = ["MainDoc", "Footnote", "Endnote"];
+const ID_REGEXP = /{[a-zA-Z0-9\-]+}/;
 
 /**
  * A class to handle a single button click which initiates an integration
@@ -42,6 +46,7 @@ Zotero.Session = class {
 	constructor(event, command) {
 		this.event = event;
 		this.command = command;
+		this.trackedObjects = [];
 	}
 
 	/**
@@ -92,8 +97,8 @@ Zotero.Session = class {
 			Zotero.logError(e);
 		}
 		finally {
-			// TODO: Release tracked objects!
 			this.event.completed();
+			await this._untrackAll();
 		}
 	}
 
@@ -125,9 +130,13 @@ Zotero.Session = class {
 		var args = Array.from(request.arguments);
 		var docID = args.splice(0, 1);
 		var result;
+		let wordRunArgs = [];
+		if (this.trackedObjects.length) {
+			wordRunArgs = [this.trackedObjects];
+		}
 		
 		try {
-			await Word.run(async (context) => {
+			await Word.run(...wordRunArgs, async (context) => {
 				this.context = context;
 				this.document = context.document;
 				try {
@@ -150,6 +159,30 @@ Zotero.Session = class {
 		
 		if (method == 'complete') return result;
 		return this.respond(result ? JSON.stringify(result) : 'null');
+	}
+
+	/**
+	 * Adds a tracked object to a list of tracked objects to be freed later.
+	 * You need to track objects to be able to access them across Word.run() and context.sync() calls.
+	 * @param wordObject
+	 * @private
+	 */
+	_track(wordObject) {
+		this.trackedObjects.push(wordObject);
+		wordObject.track();
+	}
+
+	/**
+	 * Untracks all tracked objects. To be called at the end of a transaction
+	 * @returns {Promise<void>}
+	 * @private
+	 */
+	async _untrackAll() {
+		if (!this.trackedObjects.length) return;
+		for (let object of this.trackedObjects) {
+			object.untrack();
+		}
+		await this.trackedObjects[0].context.sync();
 	}
 
 	async getDocument() {
@@ -203,7 +236,7 @@ Zotero.Session = class {
 	async complete() {}
 
 	async displayAlert(text, icons, buttons) {
-		Zotero.confirm({text, icons, buttons});
+		Zotero.confirm(JSON.stringify({text, icons, buttons}));
 		// TODO
 		// var result = await Zotero.GoogleDocs.UI.displayAlert(text, icons, buttons);
 		// if (buttons < 3) {
@@ -218,11 +251,11 @@ Zotero.Session = class {
 		const body = this.document.body;
 		let fields = body.fields.getByTypes([Word.FieldType.addin]);
 		fields = fields.load(FIELD_LOAD_OPTIONS);
-		fields.track();
+		this._track(fields);
 		let footnotes = body.footnotes.load('items/type');
-		footnotes.track();
+		this._track(footnotes);
 		let endnotes = body.endnotes.load('items/type');
-		endnotes.track();
+		this._track(endnotes);
 		await this.sync();
 		
 		footnotes.items.forEach(note => note.body.fields.load(FIELD_LOAD_OPTIONS));
@@ -246,19 +279,14 @@ Zotero.Session = class {
 		let getZoteroFieldsFromWordFields = (field, noteType=0) => {
 			if (typeof field.code !== "undefined") {
 				if (field.code.trim().startsWith(FIELD_PREFIX)) {
-					field.track();
-					return [{
-						code: field.code.trim(),
-						noteType,
-						wordField: field,
-						text: field.result.text
-					}];
+					this._track(field);
+					return [this._wordFieldToField(field, noteType)];
 				}
 				else return [];
 			}
 			let fields = [];
 			for (let noteField of field.body.fields.items) {
-				fields = fields.concat(getZoteroFieldsFromWordFields(noteField, noteField.type === 'Footnote' ? 1 : 2));
+				fields = fields.concat(getZoteroFieldsFromWordFields(noteField, BODY_TYPE_TO_NOTE_TYPE[noteField.type]));
 			}
 			return fields;
 		}
@@ -305,23 +333,47 @@ Zotero.Session = class {
 		selection.parentBody.load('type');
 		await this.sync();
 		const type = selection.parentBody.type;
-		return (fieldType !== 'Bookmark' && ["Footnote", "Endnote", "NoteItem"].includes(type))
+		return (fieldType !== 'Bookmark' && ["Footnote", "Endnote"].includes(type))
 			|| type === "MainDoc";
 	}
 	
-	async cursorInField(showOrphanedCitationAlert=false) {
+	async cursorInField(fieldType) {
 		const selection = this.document.getSelection();
-		let fields = selection.body.fields.getByTypes([Word.FieldType.addin])
+		let fields = selection.fields.getByTypes(["Addin"])
 		fields = fields.load(FIELD_LOAD_OPTIONS);
+		selection.parentBody.load('type');
 		await this.sync();
+		let noteType = BODY_TYPE_TO_NOTE_TYPE[selection.parentBody.type] || 0;
 		for (let field of fields.items) {
 			if (field.code.trim().startsWith(FIELD_PREFIX)) {
-				return [{
-					code: field.code.trim(),
-					noteType,
-					wordField: field,
-					text: field.result.text
-				}]; 
+				this._track(fields);
+				this._track(field);
+				await this.sync();
+				return this._wordFieldToField(field, noteType);
+			}
+		}
+		// Unfortunately if the selection is collapsed no fields "in selection" are returned
+		// so if a cursor is sitting in a field it's not returned above.
+		// We will instead get a range between the start of the body and selection, and
+		// another range between the selection and the end of the body and compare the
+		// last and first respective fields. If they match, the cursor is in that field.
+		const startRange = selection.parentBody.getRange("Start");
+		const endRange = selection.parentBody.getRange("End");
+		const startToSelectionRange = startRange.expandTo(selection);
+		const selectionToEndRange = selection.expandTo(endRange);
+		const startFields = startToSelectionRange.fields.getByTypes(["Addin"]);
+		const endFields = selectionToEndRange.fields.getByTypes(["Addin"]);
+		startFields.load(FIELD_LOAD_OPTIONS);
+		endFields.load(FIELD_LOAD_OPTIONS);
+		await this.sync();
+		const f1 = startFields.items[startFields.items.length-1]
+		const f2 = endFields.items[0]
+		if (this._getWordObjectID(f1) === this._getWordObjectID(f2)) {
+			if (f1.code.trim().startsWith(FIELD_PREFIX)) {
+				this._track(startFields);
+				this._track(f1);
+				await this.sync();
+				return this._wordFieldToField(f1, noteType);
 			}
 		}
 		return null;
@@ -329,42 +381,31 @@ Zotero.Session = class {
 
 
 	async insertField(fieldType, noteType) {
-		var id = Zotero.Utilities.randomString(Zotero.GoogleDocs.config.fieldKeyLength);
-		var field = {
-			text: Zotero.GoogleDocs.config.citationPlaceholder,
-			code: '{}',
-			id,
-			noteIndex: noteType ? this.insertNoteIndex : 0
-		};
-
-		this.queued.insert.push(field);
-		await this._insertField(field, false);
-		return field;
+		const selection = this.document.getSelection();
+		selection.parentBody.load('type');
+		let insertRange = selection;
+		if (noteType && selection.parentBody.type !== NOTE_TYPE_TO_BODY_TYPE[noteType]) {
+			let note;
+			if (noteType === 1) {
+				note = selection.insertFootnote('');
+			}
+			else {
+				note = selection.insertEndnote('');
+			}
+			insertRange = note.body.getRange();
+		}
+		const field = insertRange.insertField('Replace', 'Addin');
+		field.code = `ADDIN ${FIELD_PREFIX} ${FIELD_INSERT_CODE}`;
+		field.result.insertText(FIELD_PLACEHOLDER, "Replace");
+		field.load(FIELD_LOAD_OPTIONS);
+		this._track(field);
+		await this.sync();
+		return this._wordFieldToField(field, noteType);
 	}
 
 	async insertText(text) {
 		this.insertingNote = true;
 		await Zotero.GoogleDocs.UI.writeText(text);
-		await Zotero.GoogleDocs.UI.waitToSaveInsertion();
-	}
-
-	/**
-	 * Insert a front-side link at selection with field ID in the url. The text and field code
-	 * should later be saved from the server-side AppsScript code.
-	 *
-	 * @param {Object} field
-	 */
-	async _insertField(field, waitForSave=true, ignoreNote=false) {
-		var url = Zotero.GoogleDocs.config.fieldURL + field.id;
-
-		if (field.noteIndex > 0) {
-			await Zotero.GoogleDocs.UI.insertFootnote();
-		}
-		await Zotero.GoogleDocs.UI.insertLink(field.text, url);
-
-		if (!waitForSave) {
-			return;
-		}
 		await Zotero.GoogleDocs.UI.waitToSaveInsertion();
 	}
 
@@ -734,5 +775,31 @@ Zotero.Session = class {
 			fields.splice(noteSort[idx].lower, 0, note)
 		});
 		return fields;
+	}
+
+	/**
+	 * This is using an undocumented API and may break. We cannot implement field.equals() without
+	 * something like this.
+	 * @param object A word object we want an unique tracking/comparing ID for
+	 */
+	_getWordObjectID(object) {
+		try {
+			return object._objectPath.objectPathInfo.Id
+		}
+		catch (e) {
+			throw new Error('Failed to retrieve the field id.\n' + e.message);
+		}
+	}
+	
+	_wordFieldToField(wordField, noteType) {
+		// Tapping into undocumented APIs here, so this might fail
+		let id = this._getWordObjectID(wordField);
+		return {
+			code: wordField.code.trim().substr(FIELD_PREFIX.length),
+			noteType,
+			wordField: wordField,
+			text: wordField.result.text,
+			id
+		}
 	}
 }
