@@ -73,9 +73,25 @@
                     <bt:Image size="80" resid="AddEditBibliography.80x80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
+                    <FunctionName>addEditBibliography</FunctionName>
+                  </Action>
+                </Control>
+                
+                <Control xsi:type="Button" id="CitationExplorerButton">
+                  <Label resid="CitationExplorerButton.Label"/>
+                  <Supertip>
+                    <Title resid="CitationExplorerButton.Label"/>
+                    <Description resid="CitationExplorerButton.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16"/>
+                    <bt:Image size="32" resid="Icon.32x32"/>
+                    <bt:Image size="80" resid="Icon.80x80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
                     <FunctionName>citationExplorer</FunctionName>
                   </Action>
-                </Control> 
+                </Control>
                 
                 <Control xsi:type="Button" id="DocumentPreferencesButton">
                   <Label resid="DocumentPreferencesButton.Label"/>
@@ -91,7 +107,7 @@
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>setDocPrefs</FunctionName>
                   </Action>
-                </Control> 
+                </Control>
                 
                 <Control xsi:type="Button" id="RefreshButton">
                   <Label resid="RefreshButton.Label"/>
@@ -107,7 +123,7 @@
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>refresh</FunctionName>
                   </Action>
-                </Control> 
+                </Control>
                 
                 <Control xsi:type="Button" id="UnlinkButton">
                   <Label resid="UnlinkButton.Label"/>
@@ -123,7 +139,7 @@
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>unlink</FunctionName>
                   </Action>
-                </Control> 
+                </Control>
               </Group>
             </CustomTab>
           </ExtensionPoint>
@@ -158,7 +174,8 @@
         <bt:String id="CommandsGroup.Label" DefaultValue="Zotero"/>
         <bt:String id="AddEditCitationButton.Label" DefaultValue="Add/Edit Citation"/>
         <bt:String id="AddEditBibliographyButton.Label" DefaultValue="Add/Edit Bibliography"/>
-        <bt:String id="DocumentPreferencesButton.Label" DefaultValue="Document Preferences"/>
+        <bt:String id="DocumentPreferencesButton.Label" DefaultValue="Document Preferences..."/>
+        <bt:String id="CitationExplorerButton.Label" DefaultValue="Citation Explorer..."/>
         <bt:String id="RefreshButton.Label" DefaultValue="Refresh"/>
         <bt:String id="UnlinkButton.Label" DefaultValue="Unlink Citations"/>
       </bt:ShortStrings>
@@ -167,6 +184,7 @@
         <bt:String id="AddEditCitationButton.Tooltip" DefaultValue="Add a new citation or edit an existing citation."/>
         <bt:String id="AddEditBibliographyButton.Tooltip" DefaultValue="Add/Edit Bibliography"/>
         <bt:String id="DocumentPreferencesButton.Tooltip" DefaultValue="Document Preferences"/>
+        <bt:String id="CitationExplorerButton.Tooltip" DefaultValue="Explore citations in this document."/>
         <bt:String id="RefreshButton.Tooltip" DefaultValue="Refresh"/>
         <bt:String id="UnlinkButton.Tooltip" DefaultValue="Unlink Citations"/>
       </bt:LongStrings>
