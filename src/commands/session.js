@@ -47,6 +47,7 @@ Zotero.Session = class {
 		this.event = event;
 		this.command = command;
 		this.trackedObjects = [];
+		this.fieldsById = {};
 	}
 
 	/**
@@ -206,7 +207,7 @@ Zotero.Session = class {
 	async getDocumentData() {
 		const properties = this.document.properties.customProperties;
 		properties.load({$all: true});
-		await this.sync();
+		await this._sync();
 		let pref_pieces = [];
 		for (let item of properties.items) {
 			if (item.key.startsWith(ZOTERO_CONFIG.PREF_PREFIX)) {
@@ -224,7 +225,7 @@ Zotero.Session = class {
 			properties.add(`${ZOTERO_CONFIG.PREF_PREFIX}_${i}`, slice);
 			data = data.slice(ZOTERO_CONFIG.PREF_MAX_LENGTH);
 		}
-		await this.sync();
+		await this._sync();
 	}
 
 	async activate(force) {
@@ -256,11 +257,11 @@ Zotero.Session = class {
 		this._track(footnotes);
 		let endnotes = body.endnotes.load('items/type');
 		this._track(endnotes);
-		await this.sync();
+		await this._sync();
 		
 		footnotes.items.forEach(note => note.body.fields.load(FIELD_LOAD_OPTIONS));
 		endnotes.items.forEach(note => note.body.fields.load(FIELD_LOAD_OPTIONS));
-		await this.sync();
+		await this._sync();
 		
 		let filterNotes = (notes) => {
 			let notesHaveZoteroFields = notes.map((note) => {
@@ -280,6 +281,7 @@ Zotero.Session = class {
 			if (typeof field.code !== "undefined") {
 				if (field.code.trim().startsWith(FIELD_PREFIX)) {
 					this._track(field);
+					this._track(field.result);
 					return [this._wordFieldToField(field, noteType)];
 				}
 				else return [];
@@ -302,7 +304,7 @@ Zotero.Session = class {
 			let fieldB = this.fields[i+1];
 			adjacency[i] = fieldA.wordField.result.compareLocationWith(fieldB.wordField.result);
 		}
-		await this.sync();
+		await this._sync();
 		// TODO: Always returns "Equals". Reported https://github.com/OfficeDev/office-js/issues/3584 
 		this.fields.forEach((field, idx) => {
 			field.adjacent = adjacency[idx].value === "AdjacentBefore";
@@ -331,7 +333,7 @@ Zotero.Session = class {
 	async canInsertField(fieldType) {
 		const selection = this.document.getSelection();
 		selection.parentBody.load('type');
-		await this.sync();
+		await this._sync();
 		const type = selection.parentBody.type;
 		return (fieldType !== 'Bookmark' && ["Footnote", "Endnote"].includes(type))
 			|| type === "MainDoc";
@@ -342,13 +344,14 @@ Zotero.Session = class {
 		let fields = selection.fields.getByTypes(["Addin"])
 		fields = fields.load(FIELD_LOAD_OPTIONS);
 		selection.parentBody.load('type');
-		await this.sync();
+		await this._sync();
 		let noteType = BODY_TYPE_TO_NOTE_TYPE[selection.parentBody.type] || 0;
+		this._track(fields);
 		for (let field of fields.items) {
 			if (field.code.trim().startsWith(FIELD_PREFIX)) {
-				this._track(fields);
 				this._track(field);
-				await this.sync();
+				this._track(field.result);
+				await this._sync();
 				return this._wordFieldToField(field, noteType);
 			}
 		}
@@ -365,14 +368,15 @@ Zotero.Session = class {
 		const endFields = selectionToEndRange.fields.getByTypes(["Addin"]);
 		startFields.load(FIELD_LOAD_OPTIONS);
 		endFields.load(FIELD_LOAD_OPTIONS);
-		await this.sync();
+		await this._sync();
 		const f1 = startFields.items[startFields.items.length-1]
 		const f2 = endFields.items[0]
-		if (this._getWordObjectID(f1) === this._getWordObjectID(f2)) {
+		if (f1 && f2 && this._getFieldCitationId(f1) === this._getFieldCitationId(f2)) {
 			if (f1.code.trim().startsWith(FIELD_PREFIX)) {
 				this._track(startFields);
 				this._track(f1);
-				await this.sync();
+				this._track(f1.result);
+				await this._sync();
 				return this._wordFieldToField(f1, noteType);
 			}
 		}
@@ -382,10 +386,11 @@ Zotero.Session = class {
 
 	async insertField(fieldType, noteType) {
 		const selection = this.document.getSelection();
-		selection.parentBody.load('type');
+		
 		let insertRange = selection;
+		let note;
+		selection.parentBody.load('type');
 		if (noteType && selection.parentBody.type !== NOTE_TYPE_TO_BODY_TYPE[noteType]) {
-			let note;
 			if (noteType === 1) {
 				note = selection.insertFootnote('');
 			}
@@ -394,12 +399,19 @@ Zotero.Session = class {
 			}
 			insertRange = note.body.getRange();
 		}
+		
 		const field = insertRange.insertField('Replace', 'Addin');
-		field.code = `ADDIN ${FIELD_PREFIX} ${FIELD_INSERT_CODE}`;
+		field.code = `${FIELD_PREFIX}${FIELD_INSERT_CODE}`;
 		field.result.insertText(FIELD_PLACEHOLDER, "Replace");
+		// TODO: This sync call is excessive
+		// but otherwise calling load with FIELD_LOAD_OPTIONS breaks the field.
+		// See reported bug: https://github.com/OfficeDev/office-js/issues/3615
+		await this._sync();
 		field.load(FIELD_LOAD_OPTIONS);
 		this._track(field);
-		await this.sync();
+		this._track(field.result);
+		await this._sync();
+		
 		return this._wordFieldToField(field, noteType);
 	}
 
@@ -628,87 +640,7 @@ Zotero.Session = class {
 			}
 		}
 	}
-
-	async setText(fieldID, text, isRich) {
-		if (!(fieldID in this.queued.fields)) {
-			this.queued.fields[fieldID] = {id: fieldID};
-		}
-		// Fixing Google bugs. Google Docs XML parser ignores spaces between tags
-		// e.g. <i>Journal</i> <b>2016</b>.
-		// The space above is ignored, so we move it into the previous tag
-		this.queued.fields[fieldID].text = text.replace(/(<\s*\/[^>]+>) +</g, ' $1<');
-		this.queued.fields[fieldID].isRich = isRich;
-	}
-
-	async setCode(fieldID, code) {
-		if (!(fieldID in this.queued.fields)) {
-			this.queued.fields[fieldID] = {id: fieldID};
-		}
-		// The speed of updates is highly dependend on the size of
-		// field codes. There are a few citation styles that require
-		// the abstract field, but they are not many and the speed
-		// improvement is worth the sacrifice. The users who need to
-		// use the styles that require the abstract field will have to
-		// cite items from a common group library.
-		var startJSON = code.indexOf('{');
-		var endJSON = code.lastIndexOf('}');
-		if (startJSON != -1 && endJSON != -1) {
-			var json = JSON.parse(code.substring(startJSON, endJSON+1));
-			delete json.schema;
-			if (json.citationItems) {
-				for (let i = 0; i < json.citationItems.length; i++) {
-					delete json.citationItems[i].itemData.abstract;
-				}
-				code = code.substring(0, startJSON) + JSON.stringify(json) + code.substring(endJSON+1);
-			}
-		}
-		this.queued.fields[fieldID].code = code;
-	}
-
-	async delete(fieldID) {
-		if (this.queued.insert[0] && this.queued.insert[0].id == fieldID) {
-			let [field] = this.queued.insert.splice(0, 1);
-			await Zotero.GoogleDocs.UI.undo();
-			if (field.noteIndex > 0) {
-				await Zotero.GoogleDocs.UI.undo();
-				await Zotero.GoogleDocs.UI.undo();
-				await Zotero.GoogleDocs.UI.undo();
-			}
-			delete this.queued.fields[fieldID];
-			return;
-		}
-		if (!(fieldID in this.queued.fields)) {
-			this.queued.fields[fieldID] = {id: fieldID};
-		}
-		this.queued.fields[fieldID].delete = true;
-	}
-
-	async removeCode(fieldID) {
-		if (this.queued.insert && this.queued.insert.id == fieldID) {
-			this.queued.insert.removeCode = true;
-		}
-		if (!(fieldID in this.queued.fields)) {
-			this.queued.fields[fieldID] = {id: fieldID};
-		}
-		this.queued.fields[fieldID].removeCode = true;
-		// This call is a part of Unlink Citations, which means that
-		// after this there will be no more Zotero links in the file
-		Zotero.GoogleDocs.hasZoteroCitations = false;
-	}
-
-	async select(fieldID) {
-		let fields = await this.getFields();
-		let field = fields.find(f => f.id == fieldID);
-
-		if (!field) {
-			throw new Error(`Attempting to select field ${fieldID} that does not exist in the document`);
-		}
-		let url = Zotero.GoogleDocs.config.fieldURL+field.id;
-		if (!await Zotero.GoogleDocs.UI.selectText(field.text, url)) {
-			Zotero.debug(`Failed to select ${field.text} with url ${url}`);
-		}
-	}
-
+	
 	async importDocument() {
 		delete this.fields;
 		return Zotero.GoogleDocs_API.run(this.documentID, 'importDocument');
@@ -725,7 +657,39 @@ Zotero.Session = class {
 		Zotero.GoogleDocs.downloadInterceptBlocked = true;
 	}	
 
-	async sync() {
+	async setText(fieldID, text) {
+		const field = this.fieldsById[fieldID];
+		// TODO: Broken upstream, see https://github.com/OfficeDev/office-js/issues/3613
+		// field.wordField.result.insertHtml(text, "Replace");
+		field.wordField.result.insertText(text, "Replace");
+		await this._sync();
+	}
+
+	async setCode(fieldID, code) {
+		const field = this.fieldsById[fieldID];
+		field.wordField.code = `${FIELD_PREFIX}${code}`;
+		await this._sync();
+	}
+
+	async delete(fieldID) {
+		const field = this.fieldsById[fieldID];
+		field.wordField.result.insertText("", "Replace");
+		await this._sync();
+	}
+
+	async removeCode(fieldID) {
+		const field = this.fieldsById[fieldID];
+		field.wordField.code = "";
+		await this._sync();
+	}
+
+	async select(fieldID) {
+		const field = this.fieldsById[fieldID];
+		field.wordField.result.select();
+		await this._sync();
+	}
+
+	async _sync() {
 		return this.context.sync();
 	}
 	
@@ -766,7 +730,7 @@ Zotero.Session = class {
 			}
 			areSorted = noteSort.every(status => status.lower === status.upper);
 			if (areSorted) break;
-			await this.sync();
+			await this._sync();
 		}
 		// Insert in reverse
 		notes.sort(() => -1);
@@ -777,29 +741,45 @@ Zotero.Session = class {
 		return fields;
 	}
 
-	/**
-	 * This is using an undocumented API and may break. We cannot implement field.equals() without
-	 * something like this.
-	 * @param object A word object we want an unique tracking/comparing ID for
-	 */
-	_getWordObjectID(object) {
-		try {
-			return object._objectPath.objectPathInfo.Id
+	_getFieldCitationId(field) {
+		if (!field.code.trim().startsWith(FIELD_PREFIX)) {
+			return randomString();
 		}
-		catch (e) {
-			throw new Error('Failed to retrieve the field id.\n' + e.message);
+		const startIdx = field.code.indexOf('{');
+		if (startIdx === -1) {
+			return "TEMP";
 		}
+		const endIdx = field.code.lastIndexOf('}');
+		const code = field.code.substr(startIdx, endIdx - startIdx + 1);
+		const citation = JSON.parse(code);
+		return citation.citationID;
 	}
 	
 	_wordFieldToField(wordField, noteType) {
-		// Tapping into undocumented APIs here, so this might fail
-		let id = this._getWordObjectID(wordField);
-		return {
+		let id = this._getFieldCitationId(wordField);
+		const field = {
 			code: wordField.code.trim().substr(FIELD_PREFIX.length),
 			noteType,
 			wordField: wordField,
 			text: wordField.result.text,
 			id
 		}
+		this.fieldsById[id] = field;
+		return field;
 	}
+}
+
+function randomString(len, chars) {
+	if (!chars) {
+		chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+	}
+	if (!len) {
+		len = 8;
+	}
+	var randomstring = '';
+	for (var i=0; i<len; i++) {
+		var rnum = Math.floor(Math.random() * chars.length);
+		randomstring += chars.substring(rnum,rnum+1);
+	}
+	return randomstring;
 }

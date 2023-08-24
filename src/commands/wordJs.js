@@ -63,7 +63,7 @@ for (let button of buttons) {
 }
 
 g.testFootnoteFieldRetrieve = async function(event) {
-	Word.run(async (context) => {
+	await Word.run(async (context) => {
 		const selection = context.document.getSelection();
 		const footnote = selection.insertFootnote('test');
 		await context.sync();
@@ -78,6 +78,40 @@ g.testFootnoteFieldRetrieve = async function(event) {
 		const fields = footnote.body.fields.load({ result: { text: true } });
 		await context.sync();
 		console.log(fields.items[0].result.text);
+	});
+	if (event) {
+		event.completed();
+	}
+}
+
+g.testInsertHtmlIntoField = async function(event) {
+	await Word.run(async (context) => {
+		const selection = context.document.getSelection().getRange();
+		const field = selection.insertField('Replace', 'Addin');
+		field.code = `ADDIN test`;
+		field.result.insertHtml("Test", "Replace");
+		field.track();
+		await context.sync();
+	});
+	if (event) {
+		event.completed();
+	}
+}
+
+g.testFieldTextReplace = async function(event) {
+	await Word.run(async (context) => {
+		const selection = context.document.getSelection().getRange();
+		const field = selection.insertField('Replace', 'Addin');
+		field.code = `ADDIN test`;
+		field.result.insertText("Test", "Replace");
+		await context.sync();
+		field.load({
+			result: {
+				text: true
+			}
+		});
+		await context.sync();
+		field.result.insertText("Test2", "Replace");;
 	});
 	if (event) {
 		event.completed();
