@@ -110,8 +110,8 @@ g.testFieldTextReplace = async function(event) {
 				text: true
 			}
 		});
+		field.result.insertText("Test2", "Replace");
 		await context.sync();
-		field.result.insertText("Test2", "Replace");;
 	});
 	if (event) {
 		event.completed();

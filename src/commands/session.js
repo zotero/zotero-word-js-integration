@@ -48,6 +48,7 @@ Zotero.Session = class {
 		this.command = command;
 		this.trackedObjects = [];
 		this.fieldsById = {};
+		this.orphanFields = [];
 	}
 
 	/**
@@ -150,6 +151,7 @@ Zotero.Session = class {
 		catch (e) {
 			Zotero.debug(`Exception in ${request.command}`);
 			Zotero.logError(e);
+			debugger;
 			result = {
 				error: e.type || `Connector Error`,
 				message: e.message,
@@ -248,7 +250,32 @@ Zotero.Session = class {
 	}
 
 	async getFields() {
-		if (this.fields) return this.fields;
+		if (this.fields) {
+			// This is highly annoying and maybe somewhat bad for performance,
+			// but there is NO way to identify a field
+			// retrieved from insert/selection and one from a field collection
+			// by comparing IDs or something, and the only way to check if things are
+			// equal is to use the *ASYNC* range comparison command.
+			if (this.orphanFields.length) {
+				let comparisons = this.orphanFields.map(_ => []);
+				this.orphanFields.forEach((orphanField, idx) => {
+					for (let field of this.fields) {
+						comparisons[idx].push(field.wordField.result.compareLocationWith(orphanField.wordField.result));
+					}
+				});
+				await this._sync();
+				comparisons.forEach((comparison, idx) => {
+					let compIdx = comparison.findIndex(c => c.value === "Equal");
+					if (compIdx === -1) {
+						throw new Error ('Orphan Field not found when retrieving all fields');
+					}
+					delete this.fieldsById[this.fields[compIdx].id];
+					this.fields[compIdx] = this.orphanFields[idx];
+				});
+				this.orphanFields = [];
+			}
+			return this.fields;
+		}
 		const body = this.document.body;
 		let fields = body.fields.getByTypes([Word.FieldType.addin]);
 		fields = fields.load(FIELD_LOAD_OPTIONS);
@@ -352,7 +379,7 @@ Zotero.Session = class {
 				this._track(field);
 				this._track(field.result);
 				await this._sync();
-				return this._wordFieldToField(field, noteType);
+				return this._wordFieldToField(field, noteType, true);
 			}
 		}
 		// Unfortunately if the selection is collapsed no fields "in selection" are returned
@@ -371,13 +398,15 @@ Zotero.Session = class {
 		await this._sync();
 		const f1 = startFields.items[startFields.items.length-1]
 		const f2 = endFields.items[0]
-		if (f1 && f2 && this._getFieldCitationId(f1) === this._getFieldCitationId(f2)) {
-			if (f1.code.trim().startsWith(FIELD_PREFIX)) {
+		if (f1 && f2) {
+			let comparison = f1.result.compareLocationWith(f2.result);
+			await this._sync();
+			if (comparison.value === "Equal" && f1.code.trim().startsWith(FIELD_PREFIX)) {
 				this._track(startFields);
 				this._track(f1);
 				this._track(f1.result);
 				await this._sync();
-				return this._wordFieldToField(f1, noteType);
+				return this._wordFieldToField(f1, noteType, true);
 			}
 		}
 		return null;
@@ -403,258 +432,35 @@ Zotero.Session = class {
 		const field = insertRange.insertField('Replace', 'Addin');
 		field.code = `${FIELD_PREFIX}${FIELD_INSERT_CODE}`;
 		field.result.insertText(FIELD_PLACEHOLDER, "Replace");
-		// TODO: This sync call is excessive
-		// but otherwise calling load with FIELD_LOAD_OPTIONS breaks the field.
-		// See reported bug: https://github.com/OfficeDev/office-js/issues/3615
-		await this._sync();
-		field.load(FIELD_LOAD_OPTIONS);
+		// TODO: Cannot use FIELD_LOAD_OPTIONS due to a bug
+		// https://github.com/OfficeDev/office-js/issues/3615
+		field.load(["type", "code"]);
+		field.result.load("text");
 		this._track(field);
 		this._track(field.result);
 		await this._sync();
 		
-		return this._wordFieldToField(field, noteType);
+		return this._wordFieldToField(field, noteType, true);
 	}
 
 	async insertText(text) {
-		this.insertingNote = true;
-		await Zotero.GoogleDocs.UI.writeText(text);
-		await Zotero.GoogleDocs.UI.waitToSaveInsertion();
+		// TODO
 	}
 
 	async convertPlaceholdersToFields(placeholderIDs, noteType) {
-		let document = new Zotero.GoogleDocs.Document(await Zotero.GoogleDocs_API.getDocument(this.documentID));
-		let links = document.getLinks();
-
-		let placeholders = [];
-		for (let link of links) {
-			if (link.url.startsWith(Zotero.GoogleDocs.config.fieldURL) ||
-				!link.url.startsWith(Zotero.GoogleDocs.config.noteInsertionPlaceholderURL)) continue;
-			let id = link.url.substr(Zotero.GoogleDocs.config.noteInsertionPlaceholderURL.length);
-			let index = placeholderIDs.indexOf(id);
-			if (index == -1) continue;
-			link.id = id;
-			link.index = index;
-			link.code = "TEMP";
-			placeholders.push(link);
-		}
-		// Sanity check
-		if (placeholders.length != placeholderIDs.length){
-			throw new Error(`convertPlaceholdersToFields: number of placeholders (${placeholders.length}) do not match the number of provided placeholder IDs (${placeholderIDs.length})`);
-		}
-		let requestBody = { writeControl: { targetRevisionId: document.revisionId } };
-		let requests = [];
-		// Sort for update by reverse order of appearance to correctly update the doc
-		placeholders.sort((a, b) => b.endIndex - a.endIndex);
-		if (noteType == 1 && !placeholders[0].footnoteId) {
-			// Insert footnotes (and remove placeholders) (using the Google Docs API we can do that properly!)
-			for (let placeholder of placeholders) {
-				requests.push({
-					createFootnote: {
-						location: {
-							index: placeholder.startIndex,
-						}
-					}
-				});
-				requests.push({
-					deleteContentRange: {
-						range: {
-							startIndex: placeholder.startIndex+1,
-							endIndex: placeholder.endIndex+1,
-						}
-					}
-				});
-			}
-			requestBody.requests = requests;
-			let response = await Zotero.GoogleDocs_API.batchUpdateDocument(this.documentID, requestBody);
-
-			// Reinsert placeholders in the inserted footnotes
-			requestBody = {};
-			requests = [];
-			placeholders.forEach((placeholder, index) => {
-				// Every second response is from createFootnote
-				let footnoteId = response.replies[index * 2].createFootnote.footnoteId;
-				requests.push({
-					insertText: {
-						text: placeholder.text,
-						location: {
-							index: 1,
-							segmentId: footnoteId
-						}
-					}
-				});
-				requests.push({
-					updateTextStyle: {
-						textStyle: {
-							link: {
-								url: Zotero.GoogleDocs.config.fieldURL + placeholder.id
-							}
-						},
-						fields: 'link',
-						range: {
-							startIndex: 1,
-							endIndex: placeholder.text.length+1,
-							segmentId: footnoteId
-						}
-					}
-				});
-			});
-			requestBody.requests = requests;
-			await Zotero.GoogleDocs_API.batchUpdateDocument(this.documentID, requestBody);
-		} else {
-			for (let placeholder of placeholders) {
-				requests.push({
-					updateTextStyle: {
-						textStyle: {
-							link: {
-								url: Zotero.GoogleDocs.config.fieldURL + placeholder.id
-							}
-						},
-						fields: 'link',
-						range: {
-							startIndex: placeholder.startIndex,
-							endIndex: placeholder.endIndex,
-							segmentId: placeholder.footnoteId
-						}
-					}
-				});
-				if (placeholder.text[0] == ' ') {
-					requests.push({
-						updateTextStyle: {
-							textStyle: {},
-							fields: 'link',
-							range: {
-								startIndex: placeholder.startIndex,
-								endIndex: placeholder.startIndex+1,
-								segmentId: placeholder.footnoteId
-							}
-						}
-					});
-				}
-			}
-			requestBody.requests = requests;
-			await Zotero.GoogleDocs_API.batchUpdateDocument(this.documentID, requestBody);
-		}
-		// Reverse to sort in order of appearance, to make sure getFields returns inserted fields
-		// in the correct order 
-		placeholders.reverse();
-		// Queue insert calls to apps script, where the insertion of field text and code will be finalized
-		placeholders.forEach(placeholder => {
-			var field = {
-				text: placeholder.text,
-				code: placeholder.code,
-				id: placeholder.id,
-				noteIndex: noteType ? this.insertNoteIndex++ : 0
-			};
-			this.queued.insert.push(field);
-		});
-		// Returning inserted fields in the order of appearance of placeholder IDs
-		return Array.from(this.queued.insert).sort((a, b) => placeholderIDs.indexOf(a.id) - placeholderIDs.indexOf(b.id));
+		// TODO
 	}
 
 	async convert(fieldIDs, fieldType, fieldNoteTypes) {
-		var fields = await this.getFields();
-		var fieldMap = {};
-		for (let field of fields) {
-			fieldMap[field.id] = field;
-		}
-
-		this.queued.conversion = true;
-		if (fieldMap[fieldIDs[0]].noteIndex != fieldNoteTypes[0]) {
-			// Note/intext conversions
-			if (fieldNoteTypes[0] > 0) {
-				fieldIDs = new Set(fieldIDs);
-				let document = new Zotero.GoogleDocs.Document(await Zotero.GoogleDocs_API.getDocument(this.documentID));
-				let links = document.getLinks()
-					.filter((link) => {
-						if (!link.url.startsWith(Zotero.GoogleDocs.config.fieldURL)) return false;
-						let id = link.url.substr(Zotero.GoogleDocs.config.fieldURL.length);
-						return fieldIDs.has(id) && !link.footnoteId;
-
-					})
-					// Sort for update by reverse order of appearance to correctly update the doc
-					.reverse();
-				let requestBody = { writeControl: { targetRevisionId: document.revisionId } };
-				let requests = [];
-
-				// Insert footnotes (and remove placeholders)
-				for (let link of links) {
-					requests.push({
-						createFootnote: {
-							location: {
-								index: link.endIndex,
-							}
-						}
-					});
-					requests.push({
-						deleteContentRange: {
-							range: {
-								startIndex: link.startIndex,
-								endIndex: link.endIndex,
-							}
-						}
-					});
-				}
-				requestBody.requests = requests;
-				let response = await Zotero.GoogleDocs_API.batchUpdateDocument(this.documentID, requestBody);
-
-				// Reinsert placeholders in the inserted footnotes
-				requestBody = {};
-				requests = [];
-				links.forEach((link, index) => {
-					// Every second response is from createFootnote
-					let footnoteId = response.replies[index * 2].createFootnote.footnoteId;
-					requests.push({
-						insertText: {
-							text: link.text,
-							location: {
-								index: 1,
-								segmentId: footnoteId
-							}
-						}
-					});
-					requests.push({
-						updateTextStyle: {
-							textStyle: {
-								link: {
-									url: link.url
-								}
-							},
-							fields: 'link',
-							range: {
-								startIndex: 1,
-								endIndex: link.text.length+1,
-								segmentId: footnoteId
-							}
-						}
-					});
-				});
-				requestBody.requests = requests;
-				await Zotero.GoogleDocs_API.batchUpdateDocument(this.documentID, requestBody);
-			} else {
-				// To in-text conversions client-side are impossible, because there is no obvious way
-				// to make the cursor jump from the footnote section to its corresponding footnote.
-				// Luckily, this can be done in Apps Script.
-				return Zotero.GoogleDocs_API.run(this.documentID, 'footnotesToInline', [
-					fieldIDs,
-				]);
-			}
-		}
+		// TODO
 	}
 	
 	async importDocument() {
-		delete this.fields;
-		return Zotero.GoogleDocs_API.run(this.documentID, 'importDocument');
-		Zotero.GoogleDocs.downloadInterceptBlocked = false;
+		// TODO
 	}
 
 	async exportDocument() {
-		await Zotero.GoogleDocs_API.run(this.documentID, 'exportDocument', Array.from(arguments));
-		var i = 0;
-		Zotero.debug(`GDocs: Clearing fields ${i++}`);
-		while (!(await Zotero.GoogleDocs_API.run(this.documentID, 'clearAllFields'))) {
-			Zotero.debug(`GDocs: Clearing fields ${i++}`)
-		}
-		Zotero.GoogleDocs.downloadInterceptBlocked = true;
+		// TODO
 	}	
 
 	async setText(fieldID, text) {
@@ -679,7 +485,7 @@ Zotero.Session = class {
 
 	async removeCode(fieldID) {
 		const field = this.fieldsById[fieldID];
-		field.wordField.code = "";
+		field.wordField.delete();
 		await this._sync();
 	}
 
@@ -740,29 +546,18 @@ Zotero.Session = class {
 		});
 		return fields;
 	}
-
-	_getFieldCitationId(field) {
-		if (!field.code.trim().startsWith(FIELD_PREFIX)) {
-			return randomString();
-		}
-		const startIdx = field.code.indexOf('{');
-		if (startIdx === -1) {
-			return "TEMP";
-		}
-		const endIdx = field.code.lastIndexOf('}');
-		const code = field.code.substr(startIdx, endIdx - startIdx + 1);
-		const citation = JSON.parse(code);
-		return citation.citationID;
-	}
 	
-	_wordFieldToField(wordField, noteType) {
-		let id = this._getFieldCitationId(wordField);
+	_wordFieldToField(wordField, noteType, orphan=false) {
+		let id = randomString();
 		const field = {
 			code: wordField.code.trim().substr(FIELD_PREFIX.length),
 			noteType,
 			wordField: wordField,
 			text: wordField.result.text,
 			id
+		}
+		if (orphan) {
+			this.orphanFields.push(field);
 		}
 		this.fieldsById[id] = field;
 		return field;
