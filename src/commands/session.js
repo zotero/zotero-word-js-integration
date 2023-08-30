@@ -24,7 +24,6 @@
 */
 
 const FIELD_LOAD_OPTIONS = {
-	type: true,
 	code: true,
 	result: {
 		text: true
@@ -35,7 +34,6 @@ const FIELD_INSERT_CODE = "TEMP";
 const FIELD_PLACEHOLDER = "{Updating}";
 const BODY_TYPE_TO_NOTE_TYPE = { "Footnote": 1, "Endnote": 2 }
 const NOTE_TYPE_TO_BODY_TYPE = ["MainDoc", "Footnote", "Endnote"];
-const ID_REGEXP = /{[a-zA-Z0-9\-]+}/;
 
 /**
  * A class to handle a single button click which initiates an integration
@@ -264,13 +262,13 @@ Zotero.Session = class {
 					}
 				});
 				await this._sync();
-				comparisons.forEach((comparison, idx) => {
-					let compIdx = comparison.findIndex(c => c.value === "Equal");
-					if (compIdx === -1) {
+				comparisons.forEach((comparison, orphanIdx) => {
+					let fieldIdx = comparison.findIndex(c => c.value === "Equal");
+					if (fieldIdx === -1) {
 						throw new Error ('Orphan Field not found when retrieving all fields');
 					}
-					delete this.fieldsById[this.fields[compIdx].id];
-					this.fields[compIdx] = this.orphanFields[idx];
+					this.fields[fieldIdx].id = this.orphanFields[orphanIdx].id;
+					delete this.fieldsById[this.orphanFields[orphanIdx].id];
 				});
 				this.orphanFields = [];
 			}
@@ -280,9 +278,9 @@ Zotero.Session = class {
 		let fields = body.fields.getByTypes([Word.FieldType.addin]);
 		fields = fields.load(FIELD_LOAD_OPTIONS);
 		this._track(fields);
-		let footnotes = body.footnotes.load('items/type');
+		let footnotes = body.footnotes.load(['items', 'body/type']);
 		this._track(footnotes);
-		let endnotes = body.endnotes.load('items/type');
+		let endnotes = body.endnotes.load(['items', 'body/type']);
 		this._track(endnotes);
 		await this._sync();
 		
@@ -315,7 +313,7 @@ Zotero.Session = class {
 			}
 			let fields = [];
 			for (let noteField of field.body.fields.items) {
-				fields = fields.concat(getZoteroFieldsFromWordFields(noteField, BODY_TYPE_TO_NOTE_TYPE[noteField.type]));
+				fields = fields.concat(getZoteroFieldsFromWordFields(noteField, BODY_TYPE_TO_NOTE_TYPE[field.body.type]));
 			}
 			return fields;
 		}
@@ -337,24 +335,32 @@ Zotero.Session = class {
 			field.adjacent = adjacency[idx].value === "AdjacentBefore";
 		});
 		
-		return this.fields;
+		return this.getFields();
 	}
 
-	setBibliographyStyle(firstLineIndent, bodyIndent, lineSpacing, entrySpacing,
+	async setBibliographyStyle(firstLineIndent, bodyIndent, lineSpacing, entrySpacing,
 										 tabStops, tabStopsCount) {
 		const styles = this.document.getStyles();
-		const style = styles.getByName(Word.BuiltInStyleName.bibliography);
-		style.load({
-			paragraphFormat: { $all: true }
-		});
+		let style = styles.getByNameOrNullObject(Word.BuiltInStyleName.bibliography);
+		await this._sync();
+		if (style.isNullObject) {
+			// No bibliography style in Word Online!
+			style = this.document.addStyle(Word.BuiltInStyleName.bibliography, 'Paragraph');
+			await this._sync();
+		}
+		style.load();
+		await this._sync();
 		const paragraphFormat = style.paragraphFormat;
-		paragraphFormat.firstLineIndent =  firstLineIndent / 20.0;
-		paragraphFormat.leftIndent = bodyIndent / 20.0;
-		paragraphFormat.lineSpacing = lineSpacing / 20.0;
-		paragraphFormat.spaceAfter = entrySpacing / 20.0;
-		
+		// TODO Word Online/API broken
+		// https://github.com/OfficeDev/office-js/issues/3619
+		paragraphFormat.firstLineIndent = Math.max(0, firstLineIndent / 20);
+		paragraphFormat.leftIndent = bodyIndent / 20;
+		paragraphFormat.lineSpacing = lineSpacing / 20;
+		paragraphFormat.spaceAfter = entrySpacing / 20;
+
 		// Set tab stops
 		// TODO: Missing API reported https://github.com/OfficeDev/office-js/issues/3585
+		await this._sync();
 	}
 
 	async canInsertField(fieldType) {
@@ -467,19 +473,39 @@ Zotero.Session = class {
 		const field = this.fieldsById[fieldID];
 		// TODO: Broken upstream, see https://github.com/OfficeDev/office-js/issues/3613
 		// field.wordField.result.insertHtml(text, "Replace");
-		field.wordField.result.insertText(text, "Replace");
+		field.wordField.result.insertText(text.replace(/\n/g, ""), "Replace");
+		if (field.code.startsWith("BIBL")) {
+			const style = this.document.getStyles().getByNameOrNullObject(Word.BuiltInStyleName.bibliography);
+			await this._sync();
+			style.load('builtIn');
+			await this._sync();
+			if (style.isNullObject) {
+				// No bibliography style in Word Online!
+				throw new Error("Bibliography style not set before inserting bibliography")
+			} else {
+				if (style.builtIn) {
+					field.wordField.result.styleBuiltIn = Word.BuiltInStyleName.bibliography;
+				}
+				else {
+					field.wordField.result.style = Word.BuiltInStyleName.bibliography;
+				}
+			}
+		}
 		await this._sync();
 	}
 
 	async setCode(fieldID, code) {
 		const field = this.fieldsById[fieldID];
 		field.wordField.code = `${FIELD_PREFIX}${code}`;
+		field.code = code;
 		await this._sync();
 	}
 
 	async delete(fieldID) {
 		const field = this.fieldsById[fieldID];
 		field.wordField.result.insertText("", "Replace");
+		this.fields.remove(field);
+		delete this.fieldsById[field.id];
 		await this._sync();
 	}
 

@@ -117,3 +117,28 @@ g.testFieldTextReplace = async function(event) {
 		event.completed();
 	}
 }
+
+g.testFieldCodePersistAfterTextInsert = async function(event) {
+	await Word.run(async (context) => {
+		const selection = context.document.getSelection().getRange();
+		const field = selection.insertField('Replace', 'Addin');
+		field.code = `ADDIN test`;
+		result = field.result.insertText("Test", "Replace");
+		await context.sync();
+		field.code = `ADDIN different`;
+		field.result.insertText("Test2", "Replace");
+		await context.sync();
+	});
+	await Word.run(async (context) => {
+		const fields = context.document.body.fields;
+		fields.load('items');
+		await context.sync();
+		const field = fields.items[0];
+		field.load('code');
+		await context.sync();
+		console.log(`Field code should be "ADDIN different": ${field.code}`)
+	});
+	if (event) {
+		event.completed();
+	}
+}
