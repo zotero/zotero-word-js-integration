@@ -34,6 +34,7 @@ const FIELD_INSERT_CODE = "TEMP";
 const FIELD_PLACEHOLDER = "{Updating}";
 const BODY_TYPE_TO_NOTE_TYPE = { "Footnote": 1, "Endnote": 2 }
 const NOTE_TYPE_TO_BODY_TYPE = ["MainDoc", "Footnote", "Endnote"];
+const PLACEHOLDER_LINK_ID_LENGTH = 6;
 
 /**
  * A class to handle a single button click which initiates an integration
@@ -47,6 +48,7 @@ Zotero.Session = class {
 		this.trackedObjects = [];
 		this.fieldsById = {};
 		this.orphanFields = [];
+		this.insertTextIntoNote = 0;
 	}
 
 	/**
@@ -267,8 +269,13 @@ Zotero.Session = class {
 					if (fieldIdx === -1) {
 						throw new Error ('Orphan Field not found when retrieving all fields');
 					}
-					this.fields[fieldIdx].id = this.orphanFields[orphanIdx].id;
-					delete this.fieldsById[this.orphanFields[orphanIdx].id];
+					let orphanField = this.orphanFields[orphanIdx]
+					let field = this.fields[fieldIdx];
+					// Use the orphanField id for this one and remap the field returned here to be
+					// the "main" one.
+					field.id = orphanField.id;
+					delete this.fieldsById[field.id];
+					this.fieldsById[orphanField.id] = field;
 				});
 				this.orphanFields = [];
 			}
@@ -427,25 +434,28 @@ Zotero.Session = class {
 	}
 
 
-	async insertField(fieldType, noteType) {
+	async insertField(fieldType, noteType, insertRange) {
+		this.noteType = noteType;
 		const selection = this.document.getSelection();
-		
-		let insertRange = selection;
+
 		let note;
-		selection.parentBody.load('type');
-		await this._sync();
-		if (noteType && selection.parentBody.type !== NOTE_TYPE_TO_BODY_TYPE[noteType]) {
-			if (noteType === 1) {
-				note = selection.insertFootnote('');
+		if (!insertRange) {
+			insertRange = selection;
+			selection.parentBody.load('type');
+			await this._sync();
+			if (noteType && selection.parentBody.type !== NOTE_TYPE_TO_BODY_TYPE[noteType]) {
+				if (noteType === 1) {
+					note = selection.insertFootnote('');
+				}
+				else {
+					note = selection.insertEndnote('');
+				}
+				insertRange = note.body.getRange("End");
 			}
-			else {
-				note = selection.insertEndnote('');
-			}
-			insertRange = note.body.getRange("End");
 		}
 		
 		const field = insertRange.insertField('Replace', 'Addin');
-		field.code = `${FIELD_PREFIX}${FIELD_INSERT_CODE}`;
+		field.code = `${FIELD_PREFIX}${FIELD_INSERT_CODE}}`;
 		field.result.insertText(FIELD_PLACEHOLDER, "Replace");
 		// TODO: Cannot use FIELD_LOAD_OPTIONS due to a bug
 		// https://github.com/OfficeDev/office-js/issues/3615
@@ -462,11 +472,41 @@ Zotero.Session = class {
 	}
 
 	async insertText(text) {
-		// TODO
+		const selection = this.document.getSelection();
+		let insertRange = selection;
+		selection.parentBody.load('type');
+		await this._sync();
+		// If at the start of operation cursor was in an empty footnote
+		// insertField was called, then field.delete, which deleted the
+		// footnote. As such we need to reinsert the footnote here.
+		if (this.insertTextIntoNote && selection.parentBody.type === "MainDoc") {
+			let note;
+			if (this.insertTextIntoNote === 1) {
+				note = selection.insertFootnote('');
+			}
+			else {
+				note = selection.insertEndnote('');
+			}
+			insertRange = note.body.getRange("End");
+		}
+		insertRange.insertHtml(text);
+		insertRange.parentBody.getRange().select("End");
 	}
 
 	async convertPlaceholdersToFields(placeholderIDs, noteType) {
-		// TODO
+		const selection = this.document.getSelection();
+		let ranges = selection.parentBody.getRange().getHyperlinkRanges();
+		ranges.load(['items', 'hyperlink']);
+		await this._sync();
+		let fields = [];
+		for (let range of ranges.items) {
+			const id = range.hyperlink.substring(range.hyperlink.length - PLACEHOLDER_LINK_ID_LENGTH);
+			if (placeholderIDs.indexOf(id) === -1) continue;
+			await this._sync();
+			fields.push(await this.insertField("Field", noteType, range));
+		}
+		this.fields = null;
+		return fields;
 	}
 
 	async convert(fieldIDs, fieldType, fieldNoteTypes) {
@@ -531,6 +571,7 @@ Zotero.Session = class {
 			// TODO: This does not work correctly right now due to an API bug:
 			// https://github.com/OfficeDev/office-js/issues/3591
 			if (field.wordField.result.text.trim().length === noteRange.text.trim().length) {
+				this.insertTextIntoNote = BODY_TYPE_TO_NOTE_TYPE[field.wordNote.type];
 				field.wordNote.delete();
 			}
 			else {

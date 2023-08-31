@@ -61,6 +61,22 @@
                   </Action>
                 </Control>
 
+                <Control xsi:type="Button" id="AddNoteButton">
+                  <Label resid="AddNoteButton.Label"/>
+                  <Supertip>
+                    <Title resid="AddNoteButton.Label"/>
+                    <Description resid="AddNoteButton.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="AddNote.16x16"/>
+                    <bt:Image size="32" resid="AddNote.32x32"/>
+                    <bt:Image size="80" resid="AddNote.80x80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>addNote</FunctionName>
+                  </Action>
+                </Control>
+                
                 <Control xsi:type="Button" id="AddEditBibliographyButton">
                   <Label resid="AddEditBibliographyButton.Label"/>
                   <Supertip>
@@ -157,6 +173,9 @@
         <bt:Image id="AddEditBibliography.16x16" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-16.png"/>
         <bt:Image id="AddEditBibliography.32x32" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-32.png"/>
         <bt:Image id="AddEditBibliography.80x80" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-80.png"/>
+        <bt:Image id="AddNote.16x16" DefaultValue="https://127.0.0.1:3000/assets/addNote-16.png"/>
+        <bt:Image id="AddNote.32x32" DefaultValue="https://127.0.0.1:3000/assets/addNote-32.png"/>
+        <bt:Image id="AddNote.80x80" DefaultValue="https://127.0.0.1:3000/assets/addNote-80.png"/>
         <bt:Image id="DocumentPreferences.16x16" DefaultValue="https://127.0.0.1:3000/assets/setDocumentPreferences-16.png"/>
         <bt:Image id="DocumentPreferences.32x32" DefaultValue="https://127.0.0.1:3000/assets/setDocumentPreferences-32.png"/>
         <bt:Image id="DocumentPreferences.80x80" DefaultValue="https://127.0.0.1:3000/assets/setDocumentPreferences-80.png"/>
@@ -174,6 +193,7 @@
         <bt:String id="CommandsGroup.Label" DefaultValue="Zotero"/>
         <bt:String id="AddEditCitationButton.Label" DefaultValue="Add/Edit Citation"/>
         <bt:String id="AddEditBibliographyButton.Label" DefaultValue="Add/Edit Bibliography"/>
+        <bt:String id="AddNoteButton.Label" DefaultValue="Add Note"/>
         <bt:String id="DocumentPreferencesButton.Label" DefaultValue="Document Preferences..."/>
         <bt:String id="CitationExplorerButton.Label" DefaultValue="Citation Explorer..."/>
         <bt:String id="RefreshButton.Label" DefaultValue="Refresh"/>
@@ -183,6 +203,7 @@
         <bt:String id="GetStarted.Description" DefaultValue="Zotero add-in loaded succesfully. You will find it in the Zotero tab."/>
         <bt:String id="AddEditCitationButton.Tooltip" DefaultValue="Add a new citation or edit an existing citation."/>
         <bt:String id="AddEditBibliographyButton.Tooltip" DefaultValue="Add/Edit Bibliography"/>
+        <bt:String id="AddNoteButton.Tooltip" DefaultValue="Add Note"/>
         <bt:String id="DocumentPreferencesButton.Tooltip" DefaultValue="Document Preferences"/>
         <bt:String id="CitationExplorerButton.Tooltip" DefaultValue="Explore citations in this document."/>
         <bt:String id="RefreshButton.Tooltip" DefaultValue="Refresh"/>
