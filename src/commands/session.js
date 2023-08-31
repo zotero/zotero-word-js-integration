@@ -302,18 +302,18 @@ Zotero.Session = class {
 		fields = await this._sortNotesIntoFields(fields, footnotes)
 		fields = await this._sortNotesIntoFields(fields, endnotes)
 		
-		let getZoteroFieldsFromWordFields = (field, noteType=0) => {
+		let getZoteroFieldsFromWordFields = (field, noteType=0, note=null) => {
 			if (typeof field.code !== "undefined") {
 				if (field.code.trim().startsWith(FIELD_PREFIX)) {
 					this._track(field);
 					this._track(field.result);
-					return [this._wordFieldToField(field, noteType)];
+					return [this._wordFieldToField(field, noteType, note)];
 				}
 				else return [];
 			}
 			let fields = [];
 			for (let noteField of field.body.fields.items) {
-				fields = fields.concat(getZoteroFieldsFromWordFields(noteField, BODY_TYPE_TO_NOTE_TYPE[field.body.type]));
+				fields = fields.concat(getZoteroFieldsFromWordFields(noteField, BODY_TYPE_TO_NOTE_TYPE[field.body.type], note));
 			}
 			return fields;
 		}
@@ -385,7 +385,11 @@ Zotero.Session = class {
 				this._track(field);
 				this._track(field.result);
 				await this._sync();
-				return this._wordFieldToField(field, noteType, true);
+				let note;
+				if (noteType) {
+					note = await this._getNoteFromBody(field.result.parentBody);
+				}
+				return this._wordFieldToField(field, noteType, note, true);
 			}
 		}
 		// Unfortunately if the selection is collapsed no fields "in selection" are returned
@@ -412,7 +416,11 @@ Zotero.Session = class {
 				this._track(f1);
 				this._track(f1.result);
 				await this._sync();
-				return this._wordFieldToField(f1, noteType, true);
+				let note;
+				if (noteType) {
+					note = await this._getNoteFromBody(f1.result.parentBody);
+				}
+				return this._wordFieldToField(f1, noteType, note, true);
 			}
 		}
 		return null;
@@ -425,6 +433,7 @@ Zotero.Session = class {
 		let insertRange = selection;
 		let note;
 		selection.parentBody.load('type');
+		await this._sync();
 		if (noteType && selection.parentBody.type !== NOTE_TYPE_TO_BODY_TYPE[noteType]) {
 			if (noteType === 1) {
 				note = selection.insertFootnote('');
@@ -432,7 +441,7 @@ Zotero.Session = class {
 			else {
 				note = selection.insertEndnote('');
 			}
-			insertRange = note.body.getRange();
+			insertRange = note.body.getRange("End");
 		}
 		
 		const field = insertRange.insertField('Replace', 'Addin');
@@ -446,7 +455,10 @@ Zotero.Session = class {
 		this._track(field.result);
 		await this._sync();
 		
-		return this._wordFieldToField(field, noteType, true);
+		if (noteType && !note) {
+			note = await this._getNoteFromBody(field.result.parentBody);
+		}	
+		return this._wordFieldToField(field, noteType, note, true);
 	}
 
 	async insertText(text) {
@@ -503,8 +515,31 @@ Zotero.Session = class {
 
 	async delete(fieldID) {
 		const field = this.fieldsById[fieldID];
-		field.wordField.result.insertText("", "Replace");
-		this.fields.remove(field);
+		const parentBody = field.wordField.result.parentBody;
+		parentBody.load('type');
+		await this._sync();
+		if (parentBody.type === "MainDoc") {
+			field.wordField.result.insertText("", "Replace");
+		}
+		else {
+			field.wordField.result.load('text');
+			let noteRange = field.wordNote.body.getRange();
+			noteRange.load('text');
+			await this._sync();
+			// The range.compareWithLocation function won't do us good here, since we cannot construct custom
+			// ranges that would account for an empty space.
+			// TODO: This does not work correctly right now due to an API bug:
+			// https://github.com/OfficeDev/office-js/issues/3591
+			if (field.wordField.result.text.trim().length === noteRange.text.trim().length) {
+				field.wordNote.delete();
+			}
+			else {
+				field.wordField.result.insertText("", "Replace");
+			}
+		}
+		if (this.fields) {
+			this.fields.splice(this.fields.indexOf(field), 1);
+		}
 		delete this.fieldsById[field.id];
 		await this._sync();
 	}
@@ -573,13 +608,14 @@ Zotero.Session = class {
 		return fields;
 	}
 	
-	_wordFieldToField(wordField, noteType, orphan=false) {
+	_wordFieldToField(wordField, noteType, wordNote, orphan=false) {
 		let id = randomString();
 		const field = {
 			code: wordField.code.trim().substr(FIELD_PREFIX.length),
 			noteType,
-			wordField: wordField,
 			text: wordField.result.text,
+			wordField,
+			wordNote,
 			id
 		}
 		if (orphan) {
@@ -587,6 +623,27 @@ Zotero.Session = class {
 		}
 		this.fieldsById[id] = field;
 		return field;
+	}
+	
+	async _getNoteFromBody(body) {
+		let notes;
+		if (body.type === "Footnote") {
+			notes = this.document.body.footnotes;
+		}
+		else {
+			notes = this.document.body.endnotes;
+		}
+		notes.load('items');
+		await this._sync();
+		let comparisons = [];
+		let noteRange = body.getRange();
+		for (let note of notes.items) {
+			comparisons.push(noteRange.compareLocationWith(note.body.getRange()));
+		}
+		await this._sync();
+		return notes.items.find((_, idx) => {
+			return comparisons[idx].value === "Equal";
+		});
 	}
 }
 
