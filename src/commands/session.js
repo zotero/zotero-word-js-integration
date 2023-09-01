@@ -73,28 +73,17 @@ Zotero.Session = class {
 				Zotero.debug(e.message);
 				return;
 			}
-			else if (e.status == 404) {
-				Zotero.confirm({
-					title: Zotero.getString('upgradeApp', ZOTERO_CONFIG.CLIENT_NAME),
-					message: Zotero.getString(
-						'integration_error_clientUpgrade',
-						ZOTERO_CONFIG.CLIENT_NAME + ' 5.0.46'
-					),
-					button2Text: "",
-				});
-			}
 			else if (e.status == 0) {
-				var connectorName = Zotero.getString('appConnector', ZOTERO_CONFIG.CLIENT_NAME);
-				Zotero.confirm({
-					title: Zotero.getString('error_connection_isAppRunning', ZOTERO_CONFIG.CLIENT_NAME),
-					message: Zotero.getString(
-							'integration_error_connection',
-							[connectorName, ZOTERO_CONFIG.CLIENT_NAME]
-						)
-						+ '<br /><br />'
-						+ Zotero.Inject.getConnectionErrorTroubleshootingString(),
-					button2Text: "", 
-				});
+				// var connectorName = Zotero.getString('appConnector', ZOTERO_CONFIG.CLIENT_NAME);
+				// Zotero.confirm({
+				// 	title: Zotero.getString('error_connection_isAppRunning', ZOTERO_CONFIG.CLIENT_NAME),
+				// 	message: Zotero.getString(
+				// 			'integration_error_connection',
+				// 			[connectorName, ZOTERO_CONFIG.CLIENT_NAME]
+				// 		)
+				// 		+ '<br /><br />',
+				// 	button2Text: "", 
+				// });
 			}
 			Zotero.logError(e);
 		}
@@ -182,9 +171,7 @@ Zotero.Session = class {
 	 */
 	async _untrackAll() {
 		if (!this.trackedObjects.length) return;
-		for (let object of this.trackedObjects) {
-			object.untrack();
-		}
+		this.context.trackedObjects.remove(this.trackedObjects);
 		await this.trackedObjects[0].context.sync();
 	}
 
@@ -279,8 +266,15 @@ Zotero.Session = class {
 				});
 				this.orphanFields = [];
 			}
+			// If we keep old tracked objects from other calls Word Online breaks
+			// with a "something went wrong" prompt, needs a reload and changes are lost.
+			if (this.oldTrackedObjects && this.oldTrackedObjects.length) {
+				this.context.trackedObjects.remove(this.oldTrackedObjects);
+			}
 			return this.fields;
 		}
+		this.oldTrackedObjects = this.trackedObjects;
+		this.trackedObjects = [];
 		const body = this.document.body;
 		let fields = body.fields.getByTypes([Word.FieldType.addin]);
 		fields = fields.load(FIELD_LOAD_OPTIONS);
@@ -313,13 +307,13 @@ Zotero.Session = class {
 			if (typeof field.code !== "undefined") {
 				if (field.code.trim().startsWith(FIELD_PREFIX)) {
 					this._track(field);
-					this._track(field.result);
 					return [this._wordFieldToField(field, noteType, note)];
 				}
 				else return [];
 			}
 			let fields = [];
 			for (let noteField of field.body.fields.items) {
+				this._track(field.body.fields);
 				fields = fields.concat(getZoteroFieldsFromWordFields(noteField, BODY_TYPE_TO_NOTE_TYPE[field.body.type], note));
 			}
 			return fields;
