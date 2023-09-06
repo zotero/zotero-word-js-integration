@@ -422,6 +422,7 @@ Zotero.Session = class {
 			let comparison = f1.result.compareLocationWith(f2.result);
 			await this._sync();
 			if (comparison.value === "Equal" && f1.code.trim().startsWith(FIELD_PREFIX)) {
+				f1.result.parentBody.load('type');
 				this._track(startFields);
 				this._track(f1);
 				this._track(f1.result);
@@ -437,7 +438,7 @@ Zotero.Session = class {
 	}
 
 
-	async insertField(fieldType, noteType, insertRange) {
+	async insertField(_fieldType, noteType, insertRange) {
 		this.noteType = noteType;
 		const selection = this.document.getSelection();
 
@@ -458,12 +459,13 @@ Zotero.Session = class {
 		}
 		
 		const field = insertRange.insertField('Replace', 'Addin');
-		field.code = `${FIELD_PREFIX}${FIELD_INSERT_CODE}}`;
+		field.code = `${FIELD_PREFIX}${FIELD_INSERT_CODE}`;
 		field.result.insertText(FIELD_PLACEHOLDER, "Replace");
 		// TODO: Cannot use FIELD_LOAD_OPTIONS due to a bug
 		// https://github.com/OfficeDev/office-js/issues/3615
 		field.load(["type", "code"]);
 		field.result.load("text");
+		field.result.parentBody.load("type");
 		this._track(field);
 		this._track(field.result);
 		await this._sync();
@@ -513,7 +515,80 @@ Zotero.Session = class {
 	}
 
 	async convert(fieldIDs, fieldType, fieldNoteTypes) {
-		// TODO
+		const fields = await this.getFields();
+		if (!fields.length) return;
+		if (fields[0].noteType !== fieldNoteTypes[0]) {
+			fieldIDs = new Set(fieldIDs);
+			if (fieldNoteTypes[0] > 0) {
+				await this.inlineToNotes(fieldIDs, fieldNoteTypes);
+			}
+			else {
+				await this.notesToInline(fieldIDs);
+			}
+		}
+		this.fields = null;
+	}
+	
+	async inlineToNotes(fieldIDs, fieldNoteTypes) {
+		let insertFunctionNames = {
+			1: "insertFootnote",
+			2: "insertEndnote"
+		}
+		let fields = await this.getFields();
+		// Reverse sort to not upset doc during update.
+		// Ignore fields already in notes.
+		fields = fields.reverse().filter(f => !f.noteType && fieldIDs.has(f.id));
+		fieldNoteTypes.reverse();
+		
+		let insertNotes = [];
+		fields.forEach((field, index) => {
+			const insertNoteType = fieldNoteTypes[index]
+			const functionName = insertFunctionNames[insertNoteType];
+			const note = field.wordField.result[functionName]();
+			note.track();
+			insertNotes.push(note);
+			field.wordField.delete();
+		})
+		await this._sync();
+		
+		fields.forEach((field, index) => {
+			const note = insertNotes[index];
+			const insertRange = note.body.getRange('End');
+			const wordField = insertRange.insertField('Replace', 'Addin');
+			wordField.code = `${FIELD_PREFIX}${field.code}`;
+			wordField.result.insertText(field.text, "Replace");
+			note.untrack();
+		});
+		await this._sync();
+	}
+	
+	async notesToInline(fieldIDs) {
+		let fields = await this.getFields();
+		// Reverse sort to not upset doc during update.
+		// Ignore fields already inline (shouldn't be any).
+		fields = fields.reverse().filter(f => f.noteType && fieldIDs.has(f.id));
+		
+		let noteRanges = []
+		fields.forEach(f => {
+			let range = f.wordNote.body.getRange();
+			range.load('text');
+			noteRanges.push(range);
+		});
+		await this._sync();
+		
+		fields.forEach((field, index) => {
+			const noteRange = noteRanges[index];
+			// See note in delete() for why we're comparing text length and not ranges.
+			if (field.wordField.result.text.trim().length !== noteRange.text.trim().length) {
+				return;
+			}
+		
+			const wordField = field.wordNote.reference.insertField('End', 'Addin');
+			wordField.code = `${FIELD_PREFIX}${field.code}`;
+			wordField.result.insertText(field.text, "Replace");
+			field.wordNote.delete();
+		});
+		await this._sync();
 	}
 	
 	async importDocument() {
@@ -531,7 +606,7 @@ Zotero.Session = class {
 			// This is bad code we shouldn't need but the babel transpiler is generating
 			// wrong mappings here, so we're stuck with it.
 			if (!hyperlinkRanges.items || !hyperlinkRanges.items.length) continue;
-			for (let hyperlinkRange of hyperlinkRanges.items.sort(() => -1)) {
+			for (let hyperlinkRange of hyperlinkRanges.items.reverse()) {
 				if (!hyperlinkRange.hyperlink.startsWith(IMPORT_LINK_URL)) continue;
 				const code = hyperlinkRange.text;
 				if (code.startsWith(IMPORT_DOC_PREFS_PREFIX)) {
@@ -572,7 +647,7 @@ Zotero.Session = class {
 		insertRange = insertRange.insertText(IMPORT_DOC_PREFS_PREFIX + docData, "End");
 		insertRange.hyperlink = IMPORT_LINK_URL;
 			
-		let fields = (await this.getFields()).sort(() => -1);
+		let fields = (await this.getFields()).reverse();
 		for (let field of fields) {
 			let range = field.wordField.result.getRange('End').insertText(field.code);
 			range.hyperlink = IMPORT_LINK_URL;
@@ -711,8 +786,8 @@ Zotero.Session = class {
 			await this._sync();
 		}
 		// Insert in reverse
-		notes.sort(() => -1);
-		noteSort.sort(() => -1);
+		notes.reverse();
+		noteSort.reverse();
 		notes.forEach((note, idx) => {
 			fields.splice(noteSort[idx].lower, 0, note)
 		});
