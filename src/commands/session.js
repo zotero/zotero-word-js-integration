@@ -35,6 +35,9 @@ const FIELD_PLACEHOLDER = "{Updating}";
 const BODY_TYPE_TO_NOTE_TYPE = { "Footnote": 1, "Endnote": 2 }
 const NOTE_TYPE_TO_BODY_TYPE = ["MainDoc", "Footnote", "Endnote"];
 const PLACEHOLDER_LINK_ID_LENGTH = 6;
+const IMPORT_LINK_URL = "https://www.zotero.org/";
+const IMPORT_DOC_PREFS_PREFIX = "DOCUMENT_PREFERENCES ";
+const EXPORT_DOCUMENT_MARKER = "ZOTERO_TRANSFER_DOCUMENT";
 
 /**
  * A class to handle a single button click which initiates an integration
@@ -194,6 +197,13 @@ Zotero.Session = class {
 	}
 
 	async getDocumentData() {
+		let range = this.document.body.getRange();
+		let ranges = range.getTextRanges(["\n"], true);
+		ranges.load({ select: "text", top: 1 });
+		await this._sync();
+		if (ranges.items[0].text.startsWith(EXPORT_DOCUMENT_MARKER)) {
+			return EXPORT_DOCUMENT_MARKER;
+		}
 		const properties = this.document.properties.customProperties;
 		properties.load({$all: true});
 		await this._sync();
@@ -331,7 +341,6 @@ Zotero.Session = class {
 			adjacency[i] = fieldA.wordField.result.compareLocationWith(fieldB.wordField.result);
 		}
 		await this._sync();
-		// TODO: Always returns "Equals". Reported https://github.com/OfficeDev/office-js/issues/3584 
 		this.fields.forEach((field, idx) => {
 			field.adjacent = adjacency[idx].value === "AdjacentBefore";
 		});
@@ -508,11 +517,78 @@ Zotero.Session = class {
 	}
 	
 	async importDocument() {
-		// TODO
+		let result = false;
+		let ranges = [
+			this.document.body.getRange(),
+			this.document.getFootnoteBody().getRange(),
+			this.document.getEndnoteBody().getRange()
+		];
+		for (let range of ranges) {
+			let hyperlinkRanges = range.getHyperlinkRanges();
+			hyperlinkRanges.track();
+			hyperlinkRanges.load(['items', 'hyperlink', 'text']);
+			await this._sync();
+			// This is bad code we shouldn't need but the babel transpiler is generating
+			// wrong mappings here, so we're stuck with it.
+			if (!hyperlinkRanges.items || !hyperlinkRanges.items.length) continue;
+			for (let hyperlinkRange of hyperlinkRanges.items.sort(() => -1)) {
+				if (!hyperlinkRange.hyperlink.startsWith(IMPORT_LINK_URL)) continue;
+				const code = hyperlinkRange.text;
+				if (code.startsWith(IMPORT_DOC_PREFS_PREFIX)) {
+					await this.setDocumentData(code.substring(IMPORT_DOC_PREFS_PREFIX.length));
+					result = true;
+					hyperlinkRange.insertText("", "Replace");
+					continue;
+				}
+				hyperlinkRange.hyperlink = "";
+				let field = hyperlinkRange.insertField("Replace", "Addin");
+				field.code = FIELD_PREFIX + code;
+				field.result.insertText(FIELD_PLACEHOLDER, "Replace");
+			}
+			await this._sync();
+			hyperlinkRanges.untrack();
+		}
+		
+		if (!result) return result;
+		
+		// Remove the first 4 paragraphs - import marker, instructions and empty paragraphs.
+		let range = this.document.body.getRange();
+		ranges = range.getTextRanges(["\n"]);
+		ranges.load({ top: 4 });
+		await this._sync();
+		range = range.getRange('Start');
+		range = range.expandTo(ranges.items[3]);
+		range.insertText("", "Replace");
+		await this._sync();
+		
+		return result;
 	}
 
-	async exportDocument() {
-		// TODO
+	async exportDocument(_, importInstructions) {
+		// Document data
+		let docData = await this.getDocumentData();
+		let insertRange = this.document.body.getRange('End');
+		insertRange = insertRange.insertText("\n", "End");
+		insertRange = insertRange.insertText(IMPORT_DOC_PREFS_PREFIX + docData, "End");
+		insertRange.hyperlink = IMPORT_LINK_URL;
+			
+		let fields = (await this.getFields()).sort(() => -1);
+		for (let field of fields) {
+			let range = field.wordField.result.getRange('End').insertText(field.code);
+			range.hyperlink = IMPORT_LINK_URL;
+			field.wordField.delete();
+		}
+		await this._sync();
+	
+		// Import instructions
+		insertRange = this.document.body.getRange('Start');
+		insertRange = insertRange.insertText("\n\n", "Start");
+		insertRange = insertRange.insertText(importInstructions, "Start")
+		
+		// Export marker
+		insertRange = insertRange.insertText("\n\n", "Start");
+		insertRange.insertText(EXPORT_DOCUMENT_MARKER, "Start");
+		await this._sync();
 	}	
 
 	async setText(fieldID, text) {
