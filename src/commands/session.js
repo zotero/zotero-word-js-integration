@@ -235,15 +235,27 @@ Zotero.Session = class {
 
 	async complete() {}
 
-	async displayAlert(text, icons, buttons) {
-		Zotero.confirm(JSON.stringify({text, icons, buttons}));
-		// TODO
-		// var result = await Zotero.GoogleDocs.UI.displayAlert(text, icons, buttons);
-		// if (buttons < 3) {
-		// 	return result % 2;
-		// } else {
-		// 	return 3 - result;
-		// }
+	async displayAlert(text, icon, buttons) {
+		const dialogUrl = window.location.origin + `/dialog.html?text=${encodeURIComponent(text)}&icon=${icon}&buttons=${buttons}`;
+		return new Promise((resolve, reject) => {
+			Office.context.ui.displayDialogAsync(dialogUrl, { displayInIframe: true, width: 60, height: 40 }, (asyncResult) => {
+				if (asyncResult.error) {
+					reject(new Error(`Office.ui.displayDialogAsync error ` + JSON.stringify(asyncResult.error)));
+				}
+				const dialog = asyncResult.value;
+				dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
+					dialog.close();
+					resolve(arg.message);
+				});
+				dialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
+					if (arg.error === 12006) {
+						dialog.close();
+						resolve(0)
+					}
+				})
+			});
+		})
+		
 	}
 
 	async getFields() {

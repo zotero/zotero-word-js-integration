@@ -26,6 +26,7 @@ module.exports = async (env, options) => {
         "./src/commands/session.js",
         "./src/commands/wordJs.js"
       ],
+      dialog: ["./src/dialog/dialog.js"]
     },
     output: {
       clean: true,
@@ -83,6 +84,11 @@ module.exports = async (env, options) => {
         filename: "commands.html",
         template: "./src/commands/commands.html",
         chunks: ["polyfill", "commands"],
+      }),
+      new HtmlWebpackPlugin({
+        filename: "dialog.html",
+        template: "./src/dialog/dialog.html",
+        chunks: ["polyfill", "dialog"],
       }),
     ],
     devServer: {

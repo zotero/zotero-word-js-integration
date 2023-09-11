@@ -30,9 +30,6 @@ Zotero = {
 	logError: (e) => {
 		console.log(e)
 	},
-	confirm: function(options) {
-		console.warn(`ZoteroWordJSAddin: NOT IMPLEMENTED CONFIRM DIALOG ${options}`);
-	},
 	getString: function(str) {
 		return str;
 	}

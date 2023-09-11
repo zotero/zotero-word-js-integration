@@ -23,24 +23,30 @@
     
     ***** END LICENSE BLOCK *****
 -->
-<html>
-
+<html style="height: 100%; display: flex" lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-
-    <!-- Office JavaScript API -->
-    <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>
-    <script type="text/javascript" src="config.js"></script>
-    <script type="text/javascript" src="zotero.js"></script>
-    <script type="text/javascript" src="promise.js"></script>
-    <script type="text/javascript" src="http.js"></script>
-    <script type="text/javascript" src="session.js"></script>
-    <script type="text/javascript" src="wordJs.js"></script>
+	<meta charset="UTF-8">
+	<title>Dialog</title>
+	<script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>
+	<script type="module" src="https://unpkg.com/@fluentui/web-components"></script>
+	<script type="text/javascript" src="dialog.js"></script>
+	<style>
+		body {
+			font-family: sans-serif;
+			padding: 22px;
+			display: flex;
+			flex-direction: column;
+		}
+		
+		#buttons * {
+			padding-left: 10px;
+		}
+	</style>
 </head>
-
-<body>
-  
+<body class="ms-Fabric">
+	<div style="flex: 1; margin-bottom: 22px;">
+		<div id="text" style></div>
+	</div>
+	<div style="display: flex; flex-direction: row-reverse" id="buttons"> </div>
 </body>
-
 </html>
