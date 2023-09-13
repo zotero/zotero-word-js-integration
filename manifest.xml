@@ -17,7 +17,7 @@
   </Hosts>
   <Requirements>
     <Sets DefaultMinVersion="1.1">
-      <Set Name="OOXML" MinVersion="1.1"/>
+      <Set Name="WordApi" MinVersion="1.5"/>
     </Sets>
   </Requirements> 
   <DefaultSettings>
@@ -36,7 +36,6 @@
           <FunctionFile resid="Commands.Url"/>
           <ExtensionPoint xsi:type="PrimaryCommandSurface">
             <CustomTab id="ZoteroTab">
-              <Label resid="ZoteroTab.Label"/>
               <Group id="ZoteroGroup">
                 <Label resid="CommandsGroup.Label"/>
                 <Icon>
@@ -45,16 +44,16 @@
                   <bt:Image size="80" resid="Icon.80x80"/>
                 </Icon>
                 
-                <Control xsi:type="Button" id="AddEditCitationButton">
-                  <Label resid="AddEditCitationButton.Label"/>
+                <Control xsi:type="Button" id="CitationButton">
+                  <Label resid="CitationButton.Label"/>
                   <Supertip>
-                    <Title resid="AddEditCitationButton.Label"/>
-                    <Description resid="AddEditCitationButton.Tooltip"/>
+                    <Title resid="CitationButton.Label"/>
+                    <Description resid="CitationButton.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="AddEditCitation.16x16"/>
-                    <bt:Image size="32" resid="AddEditCitation.32x32"/>
-                    <bt:Image size="80" resid="AddEditCitation.80x80"/>
+                    <bt:Image size="16" resid="Citation.16x16"/>
+                    <bt:Image size="32" resid="Citation.32x32"/>
+                    <bt:Image size="80" resid="Citation.80x80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>addEditCitation</FunctionName>
@@ -77,16 +76,16 @@
                   </Action>
                 </Control>
                 
-                <Control xsi:type="Button" id="AddEditBibliographyButton">
-                  <Label resid="AddEditBibliographyButton.Label"/>
+                <Control xsi:type="Button" id="BibliographyButton">
+                  <Label resid="BibliographyButton.Label"/>
                   <Supertip>
-                    <Title resid="AddEditBibliographyButton.Label"/>
-                    <Description resid="AddEditBibliographyButton.Tooltip"/>
+                    <Title resid="BibliographyButton.Label"/>
+                    <Description resid="BibliographyButton.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="AddEditBibliography.16x16"/>
-                    <bt:Image size="32" resid="AddEditBibliography.32x32"/>
-                    <bt:Image size="80" resid="AddEditBibliography.80x80"/>
+                    <bt:Image size="16" resid="Bibliography.16x16"/>
+                    <bt:Image size="32" resid="Bibliography.32x32"/>
+                    <bt:Image size="80" resid="Bibliography.80x80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>addEditBibliography</FunctionName>
@@ -109,16 +108,16 @@
                   </Action>
                 </Control>
                 
-                <Control xsi:type="Button" id="DocumentPreferencesButton">
-                  <Label resid="DocumentPreferencesButton.Label"/>
+                <Control xsi:type="Button" id="DocPrefsButton">
+                  <Label resid="DocPrefsButton.Label"/>
                   <Supertip>
-                    <Title resid="DocumentPreferencesButton.Label"/>
-                    <Description resid="DocumentPreferencesButton.Tooltip"/>
+                    <Title resid="DocPrefsButton.Label"/>
+                    <Description resid="DocPrefsButton.Tooltip"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="DocumentPreferences.16x16"/>
-                    <bt:Image size="32" resid="DocumentPreferences.32x32"/>
-                    <bt:Image size="80" resid="DocumentPreferences.80x80"/>
+                    <bt:Image size="16" resid="DocPrefs.16x16"/>
+                    <bt:Image size="32" resid="DocPrefs.32x32"/>
+                    <bt:Image size="80" resid="DocPrefs.80x80"/>
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>setDocPrefs</FunctionName>
@@ -157,6 +156,7 @@
                   </Action>
                 </Control>
               </Group>
+              <Label resid="ZoteroTab.Label"/>
             </CustomTab>
           </ExtensionPoint>
         </DesktopFormFactor>
@@ -167,18 +167,18 @@
         <bt:Image id="Icon.16x16" DefaultValue="https://127.0.0.1:3000/assets/Icon-16.png"/>
         <bt:Image id="Icon.32x32" DefaultValue="https://127.0.0.1:3000/assets/Icon-32.png"/>
         <bt:Image id="Icon.80x80" DefaultValue="https://127.0.0.1:3000/assets/Icon-80.png"/>
-        <bt:Image id="AddEditCitation.16x16" DefaultValue="https://127.0.0.1:3000/assets/addEditCitation-16.png"/>
-        <bt:Image id="AddEditCitation.32x32" DefaultValue="https://127.0.0.1:3000/assets/addEditCitation-32.png"/>
-        <bt:Image id="AddEditCitation.80x80" DefaultValue="https://127.0.0.1:3000/assets/addEditCitation-80.png"/>
-        <bt:Image id="AddEditBibliography.16x16" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-16.png"/>
-        <bt:Image id="AddEditBibliography.32x32" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-32.png"/>
-        <bt:Image id="AddEditBibliography.80x80" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-80.png"/>
+        <bt:Image id="Citation.16x16" DefaultValue="https://127.0.0.1:3000/assets/addEditCitation-16.png"/>
+        <bt:Image id="Citation.32x32" DefaultValue="https://127.0.0.1:3000/assets/addEditCitation-32.png"/>
+        <bt:Image id="Citation.80x80" DefaultValue="https://127.0.0.1:3000/assets/addEditCitation-80.png"/>
+        <bt:Image id="Bibliography.16x16" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-16.png"/>
+        <bt:Image id="Bibliography.32x32" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-32.png"/>
+        <bt:Image id="Bibliography.80x80" DefaultValue="https://127.0.0.1:3000/assets/addEditBibliography-80.png"/>
         <bt:Image id="AddNote.16x16" DefaultValue="https://127.0.0.1:3000/assets/addNote-16.png"/>
         <bt:Image id="AddNote.32x32" DefaultValue="https://127.0.0.1:3000/assets/addNote-32.png"/>
         <bt:Image id="AddNote.80x80" DefaultValue="https://127.0.0.1:3000/assets/addNote-80.png"/>
-        <bt:Image id="DocumentPreferences.16x16" DefaultValue="https://127.0.0.1:3000/assets/setDocumentPreferences-16.png"/>
-        <bt:Image id="DocumentPreferences.32x32" DefaultValue="https://127.0.0.1:3000/assets/setDocumentPreferences-32.png"/>
-        <bt:Image id="DocumentPreferences.80x80" DefaultValue="https://127.0.0.1:3000/assets/setDocumentPreferences-80.png"/>
+        <bt:Image id="DocPrefs.16x16" DefaultValue="https://127.0.0.1:3000/assets/setDocPrefs-16.png"/>
+        <bt:Image id="DocPrefs.32x32" DefaultValue="https://127.0.0.1:3000/assets/setDocPrefs-32.png"/>
+        <bt:Image id="DocPrefs.80x80" DefaultValue="https://127.0.0.1:3000/assets/setDocPrefs-80.png"/>
         <bt:Image id="Refresh.16x16" DefaultValue="https://127.0.0.1:3000/assets/refresh-16.png"/>
         <bt:Image id="Refresh.32x32" DefaultValue="https://127.0.0.1:3000/assets/refresh-32.png"/>
         <bt:Image id="Refresh.80x80" DefaultValue="https://127.0.0.1:3000/assets/refresh-80.png"/>
@@ -191,20 +191,20 @@
         <bt:String id="GetStarted.Title" DefaultValue="Get started with your sample add-in!"/>
         <bt:String id="ZoteroTab.Label" DefaultValue="Zotero"/>
         <bt:String id="CommandsGroup.Label" DefaultValue="Zotero"/>
-        <bt:String id="AddEditCitationButton.Label" DefaultValue="Add/Edit Citation"/>
-        <bt:String id="AddEditBibliographyButton.Label" DefaultValue="Add/Edit Bibliography"/>
+        <bt:String id="CitationButton.Label" DefaultValue="Add/Edit Citation"/>
+        <bt:String id="BibliographyButton.Label" DefaultValue="Add/Edit Bibliography"/>
         <bt:String id="AddNoteButton.Label" DefaultValue="Add Note"/>
-        <bt:String id="DocumentPreferencesButton.Label" DefaultValue="Document Preferences..."/>
+        <bt:String id="DocPrefsButton.Label" DefaultValue="Document Preferences..."/>
         <bt:String id="CitationExplorerButton.Label" DefaultValue="Citation Explorer..."/>
         <bt:String id="RefreshButton.Label" DefaultValue="Refresh"/>
         <bt:String id="UnlinkButton.Label" DefaultValue="Unlink Citations"/>
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="GetStarted.Description" DefaultValue="Zotero add-in loaded successfully. You will find it in the Zotero tab"/>
-        <bt:String id="AddEditCitationButton.Tooltip" DefaultValue="Insert a new citation, or edit the citation at the current cursor position."/>
-        <bt:String id="AddEditBibliographyButton.Tooltip" DefaultValue="Insert a new bibliography, or edit the existing bibliography, at the current cursor position"/>
+        <bt:String id="CitationButton.Tooltip" DefaultValue="Insert a new citation, or edit the citation at the current cursor position."/>
+        <bt:String id="BibliographyButton.Tooltip" DefaultValue="Insert a new bibliography, or edit the existing bibliography, at the current cursor position"/>
         <bt:String id="AddNoteButton.Tooltip" DefaultValue="Insert a new note at the current cursor position"/>
-        <bt:String id="DocumentPreferencesButton.Tooltip" DefaultValue="Change the citation style or locale"/>
+        <bt:String id="DocPrefsButton.Tooltip" DefaultValue="Change the citation style or locale"/>
         <bt:String id="CitationExplorerButton.Tooltip" DefaultValue="Explore citations in this document"/>
         <bt:String id="RefreshButton.Tooltip" DefaultValue="Update all citations to reflect changes made to items in Zotero"/>
         <bt:String id="UnlinkButton.Tooltip" DefaultValue="Remove all Zotero field codes and unlink from Zotero library"/>
