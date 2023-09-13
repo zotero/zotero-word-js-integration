@@ -28,7 +28,7 @@ const FIELD_LOAD_OPTIONS = {
 	result: {
 		text: true
 	}
-}
+};
 const FIELD_PREFIX = "ADDIN ZOTERO_";
 const FIELD_INSERT_CODE = "TEMP";
 const FIELD_PLACEHOLDER = "{Updating}";
@@ -249,8 +249,8 @@ Zotero.Session = class {
 					resolve(arg.message);
 				});
 				dialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
+					// Dialog closed by user closing the window
 					if (arg.error === 12006) {
-						dialog.close();
 						resolve(0)
 					}
 				})
