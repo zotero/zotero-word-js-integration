@@ -32,6 +32,8 @@ const FIELD_LOAD_OPTIONS = {
 const FIELD_PREFIX = "ADDIN ZOTERO_";
 const FIELD_INSERT_CODE = "TEMP";
 const FIELD_PLACEHOLDER = "{Updating}";
+const PREF_PREFIX = "ZOTERO_PREF";
+const PREF_LENGTH = 255;
 const BODY_TYPE_TO_NOTE_TYPE = { "Footnote": 1, "Endnote": 2 }
 const NOTE_TYPE_TO_BODY_TYPE = ["MainDoc", "Footnote", "Endnote"];
 const PLACEHOLDER_LINK_ID_LENGTH = 6;
@@ -77,16 +79,7 @@ Zotero.Session = class {
 				return;
 			}
 			else if (e.status == 0) {
-				// var connectorName = Zotero.getString('appConnector', ZOTERO_CONFIG.CLIENT_NAME);
-				// Zotero.confirm({
-				// 	title: Zotero.getString('error_connection_isAppRunning', ZOTERO_CONFIG.CLIENT_NAME),
-				// 	message: Zotero.getString(
-				// 			'integration_error_connection',
-				// 			[connectorName, ZOTERO_CONFIG.CLIENT_NAME]
-				// 		)
-				// 		+ '<br /><br />',
-				// 	button2Text: "", 
-				// });
+				return this.displayAlert(`Word could not communicate with Zotero. Please ensure Zotero is running and try again. If this problem persists, see <a target='_blank' href='https://www.zotero.org/support/word_processor_plugin_troubleshooting'>Word Processor Plugin Troubleshooting</a>`)
 			}
 			Zotero.logError(e);
 		}
@@ -209,7 +202,7 @@ Zotero.Session = class {
 		await this._sync();
 		let pref_pieces = [];
 		for (let item of properties.items) {
-			if (item.key.startsWith(ZOTERO_CONFIG.PREF_PREFIX)) {
+			if (item.key.startsWith(PREF_PREFIX)) {
 				pref_pieces.push(item);
 			}
 		}
@@ -220,9 +213,9 @@ Zotero.Session = class {
 	async setDocumentData(data) {
 		const properties = this.document.properties.customProperties;
 		for (let i = 1; data.length; i++) {
-			let slice = data.slice(0, ZOTERO_CONFIG.PREF_MAX_LENGTH)
-			properties.add(`${ZOTERO_CONFIG.PREF_PREFIX}_${i}`, slice);
-			data = data.slice(ZOTERO_CONFIG.PREF_MAX_LENGTH);
+			let slice = data.slice(0, PREF_LENGTH)
+			properties.add(`${PREF_PREFIX}_${i}`, slice);
+			data = data.slice(PREF_LENGTH);
 		}
 		await this._sync();
 	}
@@ -235,8 +228,16 @@ Zotero.Session = class {
 
 	async complete() {}
 
-	async displayAlert(text, icon, buttons) {
-		const dialogUrl = window.location.origin + `/dialog.html?text=${encodeURIComponent(text)}&icon=${icon}&buttons=${buttons}`;
+	async displayAlert(text, icon=0, buttons=0) {
+		const buttonMapping = [
+			["OK"],
+			["Ok", "Cancel"],
+			["Yes", "No"],
+			["Yes", "No", "Cancel"]
+		]
+		text = encodeURIComponent(text);
+		buttons = encodeURIComponent(JSON.stringify(buttonMapping[buttons]));
+		const dialogUrl = window.location.origin + `/dialog.html?text=${text}&icon=${icon}&buttons=${buttons}`;
 		return new Promise((resolve, reject) => {
 			Office.context.ui.displayDialogAsync(dialogUrl, { displayInIframe: true, width: 60, height: 40 }, (asyncResult) => {
 				if (asyncResult.error) {

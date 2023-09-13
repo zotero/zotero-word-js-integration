@@ -26,6 +26,4 @@
 const ZOTERO_CONFIG = {
 	CLIENT_NAME: 'Zotero',
 	ZOTERO_URL: 'http://127.0.0.1:23119/', // TODO: configuration
-	PREF_MAX_LENGTH: 255,
-	PREF_PREFIX: "ZOTERO_PREF"
 }

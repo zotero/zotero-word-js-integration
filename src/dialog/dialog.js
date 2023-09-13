@@ -34,7 +34,7 @@ provideFluentDesignSystem()
     
 Office.onReady(function() {
 	const params = new URLSearchParams(document.location.search);
-	initDialog(params.get('text'), params.get('icon'), parseInt(params.get('buttons')))
+	initDialog(params.get('text'), params.get('icon'), JSON.parse(params.get('buttons')))
 	
 	document.addEventListener('keydown', (event) => {
 		if (event.key === "Escape") {
@@ -46,13 +46,7 @@ Office.onReady(function() {
 function initDialog(text, _icon, buttons) {
 	text = text.replace(/\n/g, '<br/>');
 	document.querySelector('#text').innerHTML = text;
-	const buttonMapping = [
-		["OK"],
-		["Ok", "Cancel"],
-		["Yes", "No"],
-		["Yes", "No", "Cancel"]
-	]
-	buttons = buttonMapping[buttons];
+
 	const buttonsElem = document.querySelector('#buttons');
 	
 	buttons.forEach((button, idx) => {

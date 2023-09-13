@@ -200,14 +200,14 @@
         <bt:String id="UnlinkButton.Label" DefaultValue="Unlink Citations"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Zotero add-in loaded succesfully. You will find it in the Zotero tab."/>
-        <bt:String id="AddEditCitationButton.Tooltip" DefaultValue="Add a new citation or edit an existing citation."/>
-        <bt:String id="AddEditBibliographyButton.Tooltip" DefaultValue="Add/Edit Bibliography"/>
-        <bt:String id="AddNoteButton.Tooltip" DefaultValue="Add Note"/>
-        <bt:String id="DocumentPreferencesButton.Tooltip" DefaultValue="Document Preferences"/>
-        <bt:String id="CitationExplorerButton.Tooltip" DefaultValue="Explore citations in this document."/>
-        <bt:String id="RefreshButton.Tooltip" DefaultValue="Refresh"/>
-        <bt:String id="UnlinkButton.Tooltip" DefaultValue="Unlink Citations"/>
+        <bt:String id="GetStarted.Description" DefaultValue="Zotero add-in loaded successfully. You will find it in the Zotero tab"/>
+        <bt:String id="AddEditCitationButton.Tooltip" DefaultValue="Insert a new citation, or edit the citation at the current cursor position."/>
+        <bt:String id="AddEditBibliographyButton.Tooltip" DefaultValue="Insert a new bibliography, or edit the existing bibliography, at the current cursor position"/>
+        <bt:String id="AddNoteButton.Tooltip" DefaultValue="Insert a new note at the current cursor position"/>
+        <bt:String id="DocumentPreferencesButton.Tooltip" DefaultValue="Change the citation style or locale"/>
+        <bt:String id="CitationExplorerButton.Tooltip" DefaultValue="Explore citations in this document"/>
+        <bt:String id="RefreshButton.Tooltip" DefaultValue="Update all citations to reflect changes made to items in Zotero"/>
+        <bt:String id="UnlinkButton.Tooltip" DefaultValue="Remove all Zotero field codes and unlink from Zotero library"/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
