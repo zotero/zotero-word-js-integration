@@ -690,7 +690,8 @@ Zotero.Session = class {
 		const field = this.fieldsById[fieldID];
 		// TODO: Broken upstream, see https://github.com/OfficeDev/office-js/issues/3613
 		// field.wordField.result.insertHtml(text, "Replace");
-		field.wordField.result.insertText(text.replace(/\n/g, ""), "Replace");
+		field.wordField.result.insertText("", "Replace");
+		field.wordField.result.insertHtml(text, "Start");
 		if (field.code.startsWith("BIBL")) {
 			const style = this.document.getStyles().getByNameOrNullObject(Word.BuiltInStyleName.bibliography);
 			await this._sync();
