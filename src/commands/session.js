@@ -201,7 +201,7 @@ Zotero.Session = class {
 		let ranges = range.getTextRanges(["\n"], true);
 		ranges.load({ select: "text", top: 1 });
 		await this._sync();
-		if (ranges.items[0].text.startsWith(EXPORT_DOCUMENT_MARKER)) {
+		if (ranges.items[0] && ranges.items[0].text.startsWith(EXPORT_DOCUMENT_MARKER)) {
 			return EXPORT_DOCUMENT_MARKER;
 		}
 		const properties = this.document.properties.customProperties;
