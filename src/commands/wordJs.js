@@ -62,6 +62,7 @@ for (let button of buttons) {
 	g[button] = generateButtonHandler(button);
 }
 
+// Fixed
 g.testFootnoteFieldRetrieve = async function(event) {
 	await Word.run(async (context) => {
 		const selection = context.document.getSelection();
@@ -84,6 +85,7 @@ g.testFootnoteFieldRetrieve = async function(event) {
 	}
 }
 
+// Now works
 g.testInsertHtmlIntoField = async function(event) {
 	await Word.run(async (context) => {
 		const selection = context.document.getSelection().getRange();
@@ -98,6 +100,44 @@ g.testInsertHtmlIntoField = async function(event) {
 	}
 }
 
+// After inserting html further changes to the field.code property throw
+g.testFieldCodeChangeAfterHtml = async function(event) {
+	try {
+		await Word.run(async (context) => {
+			const selection = context.document.getSelection().getRange();
+			const field = selection.insertField('Start', 'Addin');
+			field.code = `ADDIN test`;
+			// field.result.insertText("Test1", "Start");
+			field.result.insertHtml("<b>Test1</b>", "Start");
+			await context.sync();
+			field.code = `ADDIN test1after`
+			// Throws a GeneralException
+			await context.sync();
+		});
+	}
+	catch (e) {
+		let result = {
+			error: e.type || `Connector Error`,
+			message: e.message,
+			stack: e.stack,
+		}
+		if (e.debugInfo) {
+			result = {...result,
+				errorLocation: e.debugInfo.errorLocation,
+				fullStatements: e.debugInfo.fullStatements,
+				surroundingStatements: e.debugInfo.surroundingStatements
+			}
+		}
+		console.log(result);	
+		debugger
+		throw e;
+	}
+	if (event) {
+		event.completed();
+	}
+}
+
+// Fixed
 g.testFieldTextReplace = async function(event) {
 	await Word.run(async (context) => {
 		const selection = context.document.getSelection().getRange();
@@ -118,6 +158,7 @@ g.testFieldTextReplace = async function(event) {
 	}
 }
 
+// Still broken
 g.testFieldCodePersistAfterTextInsert = async function(event) {
 	await Word.run(async (context) => {
 		const selection = context.document.getSelection().getRange();
