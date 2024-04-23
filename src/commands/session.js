@@ -135,13 +135,20 @@ Zotero.Session = class {
 		}
 		catch (e) {
 			Zotero.debug(`Exception in ${request.command}`);
-			Zotero.logError(e);
-			debugger;
 			result = {
 				error: e.type || `Connector Error`,
 				message: e.message,
-				stack: e.stack
+				stack: e.stack,
 			}
+			if (e.debugInfo) {
+				result = {...result,
+					errorLocation: e.debugInfo.errorLocation,
+					fullStatements: e.debugInfo.fullStatements,
+					surroundingStatements: e.debugInfo.surroundingStatements
+				}
+			}
+			Zotero.debug(result);
+			debugger;
 		}
 		
 		
