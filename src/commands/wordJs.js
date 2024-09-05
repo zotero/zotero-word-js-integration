@@ -100,6 +100,25 @@ g.testInsertHtmlIntoField = async function(event) {
 	}
 }
 
+g.testInsertField = async function(event) {
+	try {
+		await Word.run(async (context) => {
+			const range = context.document.getSelection().getRange();
+			range.insertField('Replace', 'Addin');
+			await context.sync();
+			// Throws RichApi.Error: Sorry, this function isn't available.
+			// Perform a runtime check on the Office add-in to find out whether
+			// the feature is supported by the host.
+		});
+	}
+	catch (e) {
+		console.log(e);
+	}
+	if (event) {
+		event.completed();
+	}
+}
+
 // After inserting html further changes to the field.code property throw
 g.testFieldCodeChangeAfterHtml = async function(event) {
 	try {
@@ -158,7 +177,7 @@ g.testFieldTextReplace = async function(event) {
 	}
 }
 
-// Still broken
+// Fixed
 g.testFieldCodePersistAfterTextInsert = async function(event) {
 	await Word.run(async (context) => {
 		const selection = context.document.getSelection().getRange();

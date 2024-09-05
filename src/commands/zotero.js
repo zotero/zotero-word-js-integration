@@ -25,7 +25,12 @@
 
 Zotero = {
 	debug: function(str) {
-		console.log(`ZoteroWordJSAddin: ${str}`);
+		if (typeof str !== 'object') {
+			console.log(`ZoteroWordJSAddin: ${str}`);
+		}
+		else {
+			console.log(str);
+		}
 	},
 	logError: (e) => {
 		console.log(e)
