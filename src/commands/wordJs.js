@@ -62,6 +62,24 @@ for (let button of buttons) {
 	g[button] = generateButtonHandler(button);
 }
 
+function handleError(e) {
+	let result = {
+		error: e.type || `Connector Error`,
+		message: e.message,
+		stack: e.stack,
+	}
+	if (e.debugInfo) {
+		result = {...result,
+			errorLocation: e.debugInfo.errorLocation,
+			fullStatements: e.debugInfo.fullStatements,
+			surroundingStatements: e.debugInfo.surroundingStatements
+		}
+	}
+	console.log(result);
+	debugger
+	throw e;
+}
+
 // Fixed
 g.testFootnoteFieldRetrieve = async function(event) {
 	await Word.run(async (context) => {
@@ -100,6 +118,7 @@ g.testInsertHtmlIntoField = async function(event) {
 	}
 }
 
+// Broken on my account
 g.testInsertField = async function(event) {
 	try {
 		await Word.run(async (context) => {
@@ -119,7 +138,7 @@ g.testInsertField = async function(event) {
 	}
 }
 
-// After inserting html further changes to the field.code property throw
+// Fixed
 g.testFieldCodeChangeAfterHtml = async function(event) {
 	try {
 		await Word.run(async (context) => {
@@ -135,21 +154,42 @@ g.testFieldCodeChangeAfterHtml = async function(event) {
 		});
 	}
 	catch (e) {
-		let result = {
-			error: e.type || `Connector Error`,
-			message: e.message,
-			stack: e.stack,
-		}
-		if (e.debugInfo) {
-			result = {...result,
-				errorLocation: e.debugInfo.errorLocation,
-				fullStatements: e.debugInfo.fullStatements,
-				surroundingStatements: e.debugInfo.surroundingStatements
-			}
-		}
-		console.log(result);	
-		debugger
-		throw e;
+		handleError(e);
+	}
+	if (event) {
+		event.completed();
+	}
+}
+
+g.testTrackedFieldChange = async function(event) {
+	try {
+		let tracked = [];
+		let field;
+		await Word.run(async (context) => {
+			const selection = context.document.getSelection().getRange();
+			field = selection.insertField('Start', 'Addin');
+			field.code = `ADDIN test`;
+			field.result.insertHtml("<b>Test1</b>", "Start");
+			await context.sync();
+			field.code = `ADDIN test1after`
+			field.track();
+			field.result.track();
+			tracked.push(field);
+			tracked.push(field.result);
+			await context.sync();
+		});
+		await Word.run(tracked, async (context) => {
+			// NOTE Uncomment to make this work
+			// let fields = context.document.body.fields.load({ result: { text: true } });
+			// await context.sync();
+			// field = fields.items[0];
+			field.result.insertText("", "Replace");
+			await context.sync();
+			// Throws Sorry, something went wrong. Check the OfficeExtension.Error.debugInfo for more information. 
+		});
+	}
+	catch (e) {
+		handleError(e)
 	}
 	if (event) {
 		event.completed();
