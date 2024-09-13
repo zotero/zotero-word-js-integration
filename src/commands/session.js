@@ -382,8 +382,6 @@ Zotero.Session = class {
 		style.load();
 		await this._sync();
 		const paragraphFormat = style.paragraphFormat;
-		// TODO Word Online/API broken
-		// https://github.com/OfficeDev/office-js/issues/3619
 		paragraphFormat.firstLineIndent = Math.max(0, firstLineIndent / 20);
 		paragraphFormat.leftIndent = bodyIndent / 20;
 		paragraphFormat.lineSpacing = lineSpacing / 20;
@@ -689,25 +687,23 @@ Zotero.Session = class {
 
 	async setText(fieldID, text) {
 		const field = this.fieldsById[fieldID];
-		// TODO: Broken upstream, see https://github.com/OfficeDev/office-js/issues/3613
-		// field.wordField.result.insertHtml(text, "Replace");
-		field.wordField.result.insertText("", "Replace");
-		field.wordField.result.insertHtml(text, "Start");
+		let style;
+		field.wordField.result.insertHtml(text, "Replace");
 		if (field.code.startsWith("BIBL")) {
-			const style = this.document.getStyles().getByNameOrNullObject(Word.BuiltInStyleName.bibliography);
-			await this._sync();
+			style = this.document.getStyles().getByNameOrNullObject(Word.BuiltInStyleName.bibliography);
 			style.load('builtIn');
 			await this._sync();
 			if (style.isNullObject) {
 				// No bibliography style in Word Online!
 				throw new Error("Bibliography style not set before inserting bibliography")
-			} else {
-				if (style.builtIn) {
-					field.wordField.result.styleBuiltIn = Word.BuiltInStyleName.bibliography;
-				}
-				else {
-					field.wordField.result.style = Word.BuiltInStyleName.bibliography;
-				}
+			}
+		}
+		if (style) {
+			if (style.builtIn) {
+				field.wordField.result.styleBuiltIn = Word.BuiltInStyleName.bibliography;
+			}
+			else {
+				field.wordField.result.style = Word.BuiltInStyleName.bibliography;
 			}
 		}
 		await this._sync();
