@@ -337,6 +337,7 @@ Zotero.Session = class {
 			if (typeof field.code !== "undefined") {
 				if (field.code.trim().startsWith(FIELD_PREFIX)) {
 					this._track(field);
+					this._track(field.result);
 					return [this._wordFieldToField(field, noteType, note)];
 				}
 				else return [];
