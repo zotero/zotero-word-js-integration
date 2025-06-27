@@ -161,6 +161,30 @@ g.testFieldCodeChangeAfterHtml = async function(event) {
 	}
 }
 
+g.testInsertHtml = async function(event) {
+	try {
+		await Word.run(async (context) => {
+			const selection = context.document.getSelection().getRange();
+			field = selection.insertField('Start', 'Addin');
+			field.code = `ADDIN test`;
+			field.result.insertHtml("<b>Test1</b>", "Start");
+			await context.sync();
+			field.code = `ADDIN test1after`
+			field.result.insertHtml("<i>Test2</i>", "Replace");
+			await context.sync();
+			// field.load();
+			// await context.sync();
+			// Throws `Sorry, something went wrong. Check the OfficeExtension.Error.debugInfo for more information.`
+		});
+	}
+	catch (e) {
+		handleError(e)
+	}
+	if (event) {
+		event.completed();
+	}
+}
+
 g.testTrackedFieldChange = async function(event) {
 	try {
 		let tracked = [];
@@ -169,9 +193,13 @@ g.testTrackedFieldChange = async function(event) {
 			const selection = context.document.getSelection().getRange();
 			field = selection.insertField('Start', 'Addin');
 			field.code = `ADDIN test`;
-			field.result.insertHtml("<b>Test1</b>", "Start");
+			field.result.insertHtml("<b>Testą</b>", "Start");
 			await context.sync();
 			field.code = `ADDIN test1after`
+			await context.sync();
+			field.load();
+			await context.sync();
+			// Throws `Sorry, something went wrong. Check the OfficeExtension.Error.debugInfo for more information.`
 			field.track();
 			field.result.track();
 			tracked.push(field);
@@ -183,7 +211,7 @@ g.testTrackedFieldChange = async function(event) {
 			// let fields = context.document.body.fields.load({ result: { text: true } });
 			// await context.sync();
 			// field = fields.items[0];
-			field.result.insertText("", "Replace");
+			field.result.insertHtml("<i>Testč</b>", "Replace");
 			await context.sync();
 			// Throws Sorry, something went wrong. Check the OfficeExtension.Error.debugInfo for more information. 
 		});
@@ -223,10 +251,10 @@ g.testFieldCodePersistAfterTextInsert = async function(event) {
 		const selection = context.document.getSelection().getRange();
 		const field = selection.insertField('Replace', 'Addin');
 		field.code = `ADDIN test`;
-		result = field.result.insertText("Test", "Replace");
+		result = field.result.insertHtml("Test", "Replace");
 		await context.sync();
 		field.code = `ADDIN different`;
-		field.result.insertText("Test2", "Replace");
+		field.result.insertHtml("Test2", "Replace");
 		await context.sync();
 	});
 	await Word.run(async (context) => {
